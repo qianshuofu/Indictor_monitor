@@ -1,0 +1,12 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# 可再生成的产物：./update.sh --full 会重建数据库，build_dashboard.py 重建看板
+data/macro.db
+data/macro.db-journal
+dashboard.html

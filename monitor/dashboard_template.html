@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>宏观命题监控</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --side: #f3f2ee;
+  --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+  --up: #006300; --down: #d03b3b; --warn: #b77a00;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --side: #141413;
+    --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    --up: #0ca30c; --down: #e66767; --warn: #fab219;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --side: #141413;
+  --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+  --up: #0ca30c; --down: #e66767; --warn: #fab219;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Segoe UI", sans-serif; }
+.app { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+aside { background: var(--side); border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 10px; }
+aside h1 { font-size: 15px; margin: 4px 10px 2px; }
+aside .sub { color: var(--muted); font-size: 12px; margin: 0 10px 14px; }
+.thesis { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--ink2);
+  padding: 9px 10px; border-radius: 8px; font: inherit; cursor: pointer; margin-bottom: 2px; }
+.thesis:hover { background: var(--accent-wash); color: var(--ink); }
+.thesis.active { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+.thesis .cnt { float: right; color: var(--muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+main { overflow-y: auto; padding: 20px 24px 40px; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 16px; }
+.head h2 { margin: 0; font-size: 20px; }
+.ranges { display: flex; gap: 4px; background: var(--side); padding: 3px; border-radius: 8px; box-shadow: 0 0 0 1px var(--border); }
+.ranges button { border: 0; background: none; color: var(--ink2); padding: 4px 10px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.ranges button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--border); padding: 14px 16px 12px; min-width: 0; }
+.card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.stat { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px; }
+.stat .v { font-size: 22px; font-weight: 600; }
+.stat .d { font-size: 12px; font-variant-numeric: tabular-nums; }
+.stat .t { font-size: 12px; color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+.chart { height: 260px; width: 100%; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.foot .warn { color: var(--warn); }
+.note { color: var(--ink2); font-size: 13px; margin: 8px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+th { color: var(--muted); font-weight: 500; }
+.tbl { max-height: 260px; overflow: auto; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; border: 1px dashed var(--grid); border-radius: 8px; }
+select { font: inherit; font-size: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.tag { display: inline-block; font-size: 11px; color: var(--ink2); background: var(--side); border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 1px; font-weight: 400; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 40vh; }
+  main { padding: 16px; }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>宏观命题监控</h1>
+    <div class="sub" id="built"></div>
+    <nav id="nav"></nav>
+  </aside>
+  <main>
+    <div class="head">
+      <h2 id="title"></h2>
+      <div class="ranges" id="ranges"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+<script>
+const P = /*__DATA__*/null;
+const RANGES = [["1年", 1], ["3年", 3], ["5年", 5], ["10年", 10], ["全部", 99]];
+let state = { thesis: P.theses[0].id, years: 5 };
+try { const s = JSON.parse(localStorage.getItem("macro-dash") || "{}"); Object.assign(state, s); } catch (e) {}
+const save = () => { try { localStorage.setItem("macro-dash", JSON.stringify(state)); } catch (e) {} };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const colors = () => [1,2,3,4,5,6,7,8].map(i => css("--s" + i));
+let charts = [];
+
+const fmt = (v, unit) => {
+  if (v == null) return "—";
+  const a = Math.abs(v);
+  let s = a >= 1e5 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 })
+        : a >= 100 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : v.toFixed(3);
+  return unit === "%" ? s + "%" : unit === "bp" ? s + " bp" : s;
+};
+const name = sid => (P.meta[sid] || {}).name || sid;
+const unit = sid => (P.meta[sid] || {}).unit || "";
+const cutoff = () => { const d = new Date(); d.setFullYear(d.getFullYear() - state.years); return d.toISOString().slice(0, 10); };
+const series = sid => (P.data[sid] || []);
+const inRange = sid => { const c = cutoff(); return series(sid).filter(p => p[0] >= c && p[1] != null); };
+
+function baseOpt() {
+  return {
+    color: colors(), animation: false,
+    textStyle: { fontFamily: "system-ui, -apple-system, PingFang SC, sans-serif", color: css("--ink2") },
+    grid: { left: 8, right: 16, top: 30, bottom: 8, containLabel: true },
+    tooltip: { trigger: "axis", backgroundColor: css("--surface"), borderColor: css("--border"),
+      textStyle: { color: css("--ink"), fontSize: 12 }, axisPointer: { type: "line", lineStyle: { color: css("--axis") } } },
+    legend: { top: 0, left: 0, icon: "roundRect", itemWidth: 12, itemHeight: 3, textStyle: { color: css("--ink2"), fontSize: 12 } },
+  };
+}
+const timeX = () => ({ type: "time", axisLine: { lineStyle: { color: css("--axis") } }, axisTick: { show: false },
+  axisLabel: { color: css("--muted"), hideOverlap: true }, splitLine: { show: false } });
+const axFmt = (v, u) => { const a = Math.abs(v); const s = a >= 1e4 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : String(+v.toPrecision(4));
+  return u === "%" ? s + "%" : u === "bp" ? s : s; };
+const valY = (u) => ({ type: "value", scale: true, axisLabel: { color: css("--muted"), formatter: v => axFmt(v, u) },
+  splitLine: { lineStyle: { color: css("--grid") } } });
+
+function mount(el, opt) { const c = echarts.init(el, null, { renderer: "svg" }); c.setOption(opt); charts.push(c); return c; }
+
+function statHtml(sid) {
+  const s = series(sid).filter(p => p[1] != null);
+  if (!s.length) return "";
+  const last = s[s.length - 1], u = unit(sid);
+  // 与约一年前对比
+  const t = new Date(last[0]); t.setFullYear(t.getFullYear() - 1);
+  const ts = t.toISOString().slice(0, 10);
+  const prev = [...s].reverse().find(p => p[0] <= ts);
+  let d = "";
+  if (prev) {
+    const ch = last[1] - prev[1];
+    const pct = ["%", "bp", "相关系数", "点", "扩散指数", "对数偏离"].includes(u);
+    const txt = pct ? fmt(ch, u === "%" ? "%" : u === "bp" ? "bp" : "") : ((ch / Math.abs(prev[1])) * 100).toFixed(1) + "%";
+    d = `<span class="d ${ch >= 0 ? "up" : "down"}">${ch >= 0 ? "▲" : "▼"} ${ch >= 0 ? "+" : ""}${txt} 较一年前</span>`;
+  }
+  return `<div class="stat"><span class="v">${fmt(last[1], u)}</span>${d}<span class="t">${last[0]}</span></div>`;
+}
+
+function footHtml(ind) {
+  const parts = [];
+  if (ind.source) parts.push("来源：" + ind.source);
+  const lasts = ind.series.map(s => P.meta[s]).filter(Boolean);
+  const bad = ind.series.filter(s => P.meta[s] && (P.meta[s].status || "").startsWith("error") || !P.data[s] && s !== "AUCTIONS");
+  if (bad.length) parts.push(`<span class="warn">⚠ 未取到：${bad.map(name).join("、")}</span>`);
+  return `<div class="foot">${parts.join(" · ")}</div>`;
+}
+
+function manualTable(ref, limit = 12) {
+  const rows = (P.manual[ref] || []).slice(-limit).reverse();
+  if (!rows.length) return "";
+  return `<div class="tbl"><table><tr><th>日期</th><th class="l">项目</th><th>数值</th><th class="l">说明</th></tr>` +
+    rows.map(r => `<tr><td>${r[0]}</td><td class="l">${r[1] || ""}</td><td>${r[2] ?? ""}</td><td class="l">${r[3] || ""}</td></tr>`).join("") + `</table></div>`;
+}
+
+function lineOpt(sids, rebase) {
+  const o = baseOpt();
+  const us = [...new Set(sids.map(unit))];
+  const u = rebase ? "" : us[0];
+  o.xAxis = timeX(); o.yAxis = valY(u);
+  o.legend.show = sids.length > 1;
+  o.tooltip.valueFormatter = v => fmt(v, u);
+  o.series = sids.map(sid => {
+    let d = inRange(sid);
+    if (rebase && d.length) { const b = d[0][1]; d = d.map(p => [p[0], (p[1] / b) * 100]); }
+    return { name: name(sid), type: "line", data: d, showSymbol: d.length < 40, symbolSize: 6,
+      lineStyle: { width: 2 }, connectNulls: true, sampling: "lttb",
+      endLabel: { show: sids.length > 1 && sids.length <= 4, formatter: p => fmt(p.value[1], u), color: css("--ink2"), fontSize: 11 } };
+  });
+  o.grid.right = sids.length > 1 && sids.length <= 4 ? 56 : 16;
+  if (rebase) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 100 }], lineStyle: { color: css("--axis"), type: "dashed" }, label: { show: false } };
+  const zeroUnits = ["bp", "相关系数", "点", "对数偏离"];
+  if (!rebase && zeroUnits.includes(u)) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 0 }], lineStyle: { color: css("--axis") }, label: { show: false } };
+  return o;
+}
+
+function barOpt(sid) {
+  const o = baseOpt(); const u = unit(sid); const d = inRange(sid);
+  o.xAxis = timeX(); o.yAxis = valY(u); o.yAxis.scale = false; o.legend.show = false;
+  o.tooltip.valueFormatter = v => fmt(v, u);
+  o.series = [{ name: name(sid), type: "bar", data: d.map(p => ({ value: p, itemStyle: { color: p[1] >= 0 ? css("--s1") : css("--s2"), borderRadius: p[1] >= 0 ? [3,3,0,0] : [0,0,3,3] } })),
+    barMaxWidth: 14 }];
+  return o;
+}
+
+function stackOpt(sids) {
+  const o = baseOpt(); const c = cutoff();
+  const q = d => { const t = new Date(d); return t.getFullYear() + "Q" + (Math.floor(t.getMonth() / 3) + 1); };
+  const keys = new Set(); const by = {};
+  sids.forEach(sid => { by[sid] = {}; series(sid).filter(p => p[0] >= c).forEach(p => { const k = q(p[0]); keys.add(k); by[sid][k] = p[1]; }); });
+  const cats = [...keys].sort();
+  // 末尾季度若有公司尚未披露（上季有值、本季缺），横轴标 *，以免误读为合计下滑
+  const labels = [...cats];
+  for (let i = cats.length - 1; i > 0 && sids.some(s => by[s][cats[i - 1]] != null && by[s][cats[i]] == null); i--) labels[i] += "*";
+  o.xAxis = { type: "category", data: labels, axisLabel: { color: css("--muted"), hideOverlap: true }, axisLine: { lineStyle: { color: css("--axis") } }, axisTick: { show: false } };
+  o.yAxis = valY("十亿美元"); o.yAxis.scale = false;
+  o.tooltip.valueFormatter = v => v == null ? "—" : fmt(v) + " 十亿美元";
+  o.tooltip.axisPointer = { type: "shadow" };
+  o.legend.show = true;
+  o.series = sids.map(sid => ({ name: name(sid).replace(" 资本开支（季度）", ""), type: "bar", stack: "a", barMaxWidth: 22,
+    data: cats.map((k, i) => ({ value: by[sid][k] ?? null, itemStyle: labels[i] !== k ? { opacity: 0.45 } : {} })),
+    itemStyle: { borderColor: css("--surface"), borderWidth: 1 } }));
+  return o;
+}
+
+function sectorOpt(sids) {
+  const o = baseOpt();
+  const rows = sids.map(sid => {
+    const s = series(sid).filter(p => p[1] != null); if (s.length < 260) return null;
+    const last = s[s.length - 1][1], prev = s[s.length - 253][1];
+    return [name(sid).replace(" 行业ETF", "").replace("标普500 ETF（复权）", "标普500"), (last / prev - 1) * 100, sid];
+  }).filter(Boolean).sort((a, b) => a[1] - b[1]);
+  o.grid.top = 8; o.legend.show = false;
+  o.tooltip = { ...o.tooltip, trigger: "item", formatter: p => `${p.name}<br>近一年回报 <b>${p.value.toFixed(1)}%</b>` };
+  o.yAxis = { type: "category", data: rows.map(r => r[0]), axisLabel: { color: css("--ink2") }, axisLine: { show: false }, axisTick: { show: false } };
+  o.xAxis = { type: "value", axisLabel: { color: css("--muted"), formatter: v => v + "%" }, splitLine: { lineStyle: { color: css("--grid") } } };
+  o.series = [{ type: "bar", barMaxWidth: 14, data: rows.map(r => ({ value: r[1], itemStyle: { color: r[2] === "SPY" ? css("--muted") : r[1] >= 0 ? css("--s1") : css("--s2"), borderRadius: r[1] >= 0 ? [0,3,3,0] : [3,0,0,3] } })),
+    label: { show: true, position: "right", color: css("--ink2"), fontSize: 11, formatter: p => p.value.toFixed(1) + "%" } }];
+  return o;
+}
+
+function dotsOpt(sids) {
+  const o = baseOpt(); const d = series(sids[0]).filter(p => p[1] != null);
+  const lr = series(sids[1]).filter(p => p[1] != null);
+  const cats = d.map(p => p[0].slice(0, 4)); const vals = d.map(p => p[1]);
+  if (lr.length) { cats.push("长期"); vals.push(lr[lr.length - 1][1]); }
+  o.legend.show = false; o.tooltip.axisPointer = { type: "shadow" }; o.tooltip.valueFormatter = v => fmt(v, "%");
+  o.xAxis = { type: "category", data: cats, axisLabel: { color: css("--ink2") }, axisLine: { lineStyle: { color: css("--axis") } }, axisTick: { show: false } };
+  o.yAxis = valY("%"); o.yAxis.scale = false;
+  o.series = [{ name: "点阵图中位数", type: "bar", barMaxWidth: 28, data: vals, itemStyle: { color: css("--s1"), borderRadius: [4,4,0,0] },
+    label: { show: true, position: "top", color: css("--ink2"), formatter: p => p.value.toFixed(2) + "%" } }];
+  return o;
+}
+
+function auctionsCard(card, ind) {
+  const rows = P.auctions;
+  if (!rows.length) { card.insertAdjacentHTML("beforeend", `<div class="empty">尚未拉取到拍卖数据</div>`); return; }
+  const terms = ["2-Year", "5-Year", "10-Year", "30-Year", "20-Year", "7-Year", "3-Year"].filter(t => rows.some(r => r[2] === t));
+  const sel = state.term && terms.includes(state.term) ? state.term : (terms.includes("10-Year") ? "10-Year" : terms[0]);
+  card.insertAdjacentHTML("beforeend", `<div class="note">期限 <select>${terms.map(t => `<option ${t === sel ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div class="chart" style="height:180px"></div><div class="chart" style="height:180px"></div><div class="tbl"></div>`);
+  const [c1, c2] = card.querySelectorAll(".chart");
+  const draw = term => {
+    const c = cutoff(); const r = rows.filter(x => x[2] === term && x[0] >= c && x[5] != null);
+    const mk = (idx, nm, u, col) => { const o = baseOpt(); o.legend.show = false; o.grid.top = 26;
+      o.title = { text: nm, textStyle: { fontSize: 12, color: css("--ink2"), fontWeight: 500 }, left: 0, top: 0 };
+      o.xAxis = timeX(); o.yAxis = valY(u); o.tooltip.valueFormatter = v => fmt(v, u);
+      o.series = [{ name: nm, type: "line", data: r.map(x => [x[0], x[idx]]), showSymbol: true, symbolSize: 6, lineStyle: { width: 2 }, itemStyle: { color: col } }];
+      return o; };
+    charts = charts.filter(ch => ch.getDom() !== c1 && ch.getDom() !== c2);
+    echarts.dispose(c1); echarts.dispose(c2);
+    mount(c1, mk(5, "投标倍数", "", css("--s1")));
+    mount(c2, mk(6, "间接投标人获配占比（%）", "%", css("--s2")));
+    const last = r.slice(-10).reverse();
+    card.querySelector(".tbl").innerHTML = `<table><tr><th>拍卖日</th><th>规模(十亿)</th><th>中标收益率</th><th>投标倍数</th><th>间接%</th><th>一级交易商%</th></tr>` +
+      last.map(x => `<tr><td>${x[0]}</td><td>${x[3] ? (x[3] / 1e9).toFixed(0) : "—"}</td><td>${x[4] != null ? x[4].toFixed(3) + "%" : "—"}</td><td>${x[5] != null ? x[5].toFixed(2) : "—"}</td><td>${x[6] ?? "—"}</td><td>${x[7] ?? "—"}</td></tr>`).join("") + `</table>`;
+  };
+  card.querySelector("select").onchange = e => { state.term = e.target.value; save(); draw(e.target.value); };
+  draw(sel);
+}
+
+function render() {
+  charts.forEach(c => c.dispose()); charts = [];
+  const th = P.theses.find(t => t.id === state.thesis) || P.theses[0];
+  document.getElementById("title").textContent = th.title;
+  document.querySelectorAll(".thesis").forEach(b => b.classList.toggle("active", b.dataset.id === th.id));
+  document.querySelectorAll(".ranges button").forEach(b => b.classList.toggle("on", +b.dataset.y === state.years));
+  const grid = document.getElementById("grid"); grid.innerHTML = "";
+  th.indicators.forEach(ind => {
+    const card = document.createElement("div"); card.className = "card"; grid.appendChild(card);
+    const tag = ind.chart === "manual" ? `<span class="tag">手工/付费</span>` : "";
+    card.innerHTML = `<h3>${ind.name}${tag}</h3>`;
+    const has = ind.series.some(s => series(s).length);
+    if (["line", "bar", "rebased"].includes(ind.chart) && ind.series.length === 1 || ind.chart === "line" && ind.series.length <= 2)
+      card.insertAdjacentHTML("beforeend", statHtml(ind.series[0]));
+    if (ind.chart === "manual") {
+      card.insertAdjacentHTML("beforeend", `<div class="note">${ind.note}</div>`);
+      const rows = P.manual[ind.ref] || [];
+      const num = rows.filter(r => r[2] != null);
+      if (num.length >= 2) {
+        const div = document.createElement("div"); div.className = "chart"; div.style.height = "200px"; card.appendChild(div);
+        const items = [...new Set(num.map(r => r[1] || ind.name))].slice(0, 8);
+        const o = baseOpt(); o.xAxis = timeX(); o.yAxis = valY(ind.unit); o.legend.show = items.length > 1;
+        o.series = items.map(it => ({ name: it, type: "line", showSymbol: true, symbolSize: 6, lineStyle: { width: 2 },
+          data: num.filter(r => (r[1] || ind.name) === it).map(r => [r[0], r[2]]) }));
+        mount(div, o);
+      }
+      card.insertAdjacentHTML("beforeend", manualTable(ind.ref) || `<div class="empty">暂无记录 · 在 manual_data.csv 中添加 ref=${ind.ref} 的行</div>`);
+      card.insertAdjacentHTML("beforeend", `<div class="foot">来源：${ind.source}</div>`);
+      return;
+    }
+    if (ind.chart === "auctions") { auctionsCard(card, ind); card.insertAdjacentHTML("beforeend", `<div class="foot">${ind.note} · 来源：${ind.source}</div>`); return; }
+    if (!has) { card.insertAdjacentHTML("beforeend", `<div class="empty">暂无数据（运行 update_data.py 后重建看板）</div>`); card.insertAdjacentHTML("beforeend", footHtml(ind)); return; }
+    const div = document.createElement("div"); div.className = "chart"; card.appendChild(div);
+    const opt = ind.chart === "bar" ? barOpt(ind.series[0]) : ind.chart === "stack" ? stackOpt(ind.series)
+      : ind.chart === "sector" ? sectorOpt(ind.series) : ind.chart === "dots" ? dotsOpt(ind.series)
+      : lineOpt(ind.series, ind.chart === "rebased");
+    if (ind.chart === "sector") div.style.height = "320px";
+    mount(div, opt);
+    if (ind.note) card.insertAdjacentHTML("beforeend", `<div class="note" style="margin-bottom:0">${ind.note}</div>`);
+    if (ind.ref && (P.manual[ind.ref] || []).length) card.insertAdjacentHTML("beforeend", manualTable(ind.ref, 6));
+    card.insertAdjacentHTML("beforeend", footHtml(ind));
+  });
+}
+
+document.getElementById("built").textContent = "数据更新于 " + P.built;
+const nav = document.getElementById("nav");
+P.theses.forEach(t => {
+  const b = document.createElement("button"); b.className = "thesis"; b.dataset.id = t.id;
+  b.innerHTML = `${t.title}<span class="cnt">${t.indicators.length}</span>`;
+  b.onclick = () => { state.thesis = t.id; save(); render(); document.querySelector("main").scrollTop = 0; };
+  nav.appendChild(b);
+});
+const rg = document.getElementById("ranges");
+RANGES.forEach(([l, y]) => { const b = document.createElement("button"); b.textContent = l; b.dataset.y = y;
+  b.onclick = () => { state.years = y; save(); render(); }; rg.appendChild(b); });
+window.addEventListener("resize", () => charts.forEach(c => c.resize()));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+render();
+</script>
+</body>
+</html>

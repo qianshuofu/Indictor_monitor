@@ -1,0 +1,6 @@
+pandas>=1.5
+requests
+openpyxl
+xlrd
+lxml
+moomoo-api  # 可选：本机 moomoo OpenD 选股器宽度，没装/没开 OpenD 时自动跳过

@@ -1,0 +1,6 @@
+# 手工录入数据：每行一条记录。ref 对应看板里的指标（见 monitor/indicators.py 中的 ref=...）。
+# value 填数字（可空），text 填文字说明。改完后运行 ./update.sh 即可进入数据库和看板。
+# 可用的 ref：forward_pe, ism_no_inv, subprime_auto_60d, umich_5_10, nfib_price_plans, sofr_implied_eoy,
+#   fomc_dissent, debt_ceiling, auction_tail, default_rate, capex_guidance, tsmc_rev, korea_semi_exports,
+#   dram_spot, cds, neocloud_bond_yield, gpu_rental, model_arr, tokens, cloud_growth, vlcc_td3c, opec_spare, cb_gold
+ref,date,item,value,text,source
