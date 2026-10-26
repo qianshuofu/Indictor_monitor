@@ -172,6 +172,16 @@ function manualTable(ref, limit = 12) {
     rows.map(r => `<tr><td>${r[0]}</td><td class="l">${r[1] || ""}</td><td>${r[2] ?? ""}</td><td class="l">${r[3] || ""}</td></tr>`).join("") + `</table></div>`;
 }
 
+// 序列中间长时间无值（如债务上限暂停期间）时断开线条，而不是直线连过去
+function withGaps(d) {
+  if (d.length < 10) return d;
+  const t = d.map(p => Date.parse(p[0])), dt = t.slice(1).map((x, i) => x - t[i]);
+  const med = [...dt].sort((a, b) => a - b)[dt.length >> 1];
+  const out = [d[0]];
+  dt.forEach((g, i) => { if (g > 3.5 * med && g > 40 * 864e5) out.push([new Date(t[i] + g / 2).toISOString().slice(0, 10), null]); out.push(d[i + 1]); });
+  return out;
+}
+
 function lineOpt(sids, rebase) {
   const o = baseOpt();
   const us = [...new Set(sids.map(unit))];
@@ -179,17 +189,46 @@ function lineOpt(sids, rebase) {
   o.xAxis = timeX(); o.yAxis = valY(u);
   o.legend.show = sids.length > 1;
   o.tooltip.valueFormatter = v => fmt(v, u);
-  o.series = sids.map(sid => {
+  const pal = colors();
+  o.series = sids.map((sid, i) => {
     let d = inRange(sid);
     if (rebase && d.length) { const b = d[0][1]; d = d.map(p => [p[0], (p[1] / b) * 100]); }
-    return { name: name(sid), type: "line", data: d, showSymbol: d.length < 40, symbolSize: 6,
-      lineStyle: { width: 2 }, connectNulls: true, sampling: "lttb",
+    // 预测段（_F）与对应的历史序列同色、虚线
+    const base = sid.endsWith("_F") ? sids.indexOf(sid.slice(0, -2)) : -1;
+    const color = pal[(base >= 0 ? base : i) % pal.length];
+    return { name: name(sid), type: "line", data: withGaps(d), showSymbol: d.length < 40 || sid.startsWith("M:"), symbolSize: 6,
+      itemStyle: { color }, lineStyle: { width: 2, color, type: base >= 0 ? "dashed" : "solid" }, connectNulls: false, sampling: "lttb",
       endLabel: { show: sids.length > 1 && sids.length <= 4, formatter: p => fmt(p.value[1], u), color: css("--ink2"), fontSize: 11 } };
   });
   o.grid.right = sids.length > 1 && sids.length <= 4 ? 56 : 16;
   if (rebase) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 100 }], lineStyle: { color: css("--axis"), type: "dashed" }, label: { show: false } };
   const zeroUnits = ["bp", "相关系数", "点", "对数偏离"];
   if (!rebase && zeroUnits.includes(u)) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 0 }], lineStyle: { color: css("--axis") }, label: { show: false } };
+  return o;
+}
+
+// 利率期货隐含路径：横轴为合约月份，每条线是某一天的整条曲线；近月用联邦基金期货（月均 EFFR），
+// 之后接 3 个月 SOFR 期货（画在其计息期中点）；菱形为点阵图各年末中位数
+function curveOpt(sids) {
+  const o = baseOpt();
+  const fut = sids.filter(s => /^(ZQ|SR3)_\d{6}$/.test(s) && series(s).length);
+  const zq = fut.filter(s => s.startsWith("ZQ_"));
+  const lastZQ = zq.length ? zq[zq.length - 1].slice(-6) : "";
+  const use = fut.filter(s => s.startsWith("ZQ_") || s.slice(-6) > lastZQ);
+  const latest = fut.map(s => series(s)[series(s).length - 1][0]).sort().pop();
+  const back = m => { const t = new Date(latest); t.setMonth(t.getMonth() - m); return t.toISOString().slice(0, 10); };
+  const xOf = s => { const y = +s.slice(-6, -2), m = +s.slice(-2);
+    return s.startsWith("ZQ_") ? `${y}-${String(m).padStart(2, "0")}-15` : new Date(Date.UTC(y, m, 15)).toISOString().slice(0, 10); };
+  const at = (sid, day) => { let v = null; for (const p of series(sid)) { if (p[0] > day) break; v = p; }
+    return v && Date.parse(day) - Date.parse(v[0]) < 8 * 864e5 ? v[1] : null; };
+  o.series = [[latest, "最新"], [back(1), "1个月前"], [back(3), "3个月前"], [back(6), "6个月前"]].map(([day, lab], i) => ({
+    name: `${lab}（${day}）`, type: "line", showSymbol: true, symbolSize: i ? 4 : 6, connectNulls: true,
+    lineStyle: { width: i ? 1.5 : 2.5, type: i ? "dashed" : "solid" },
+    data: use.filter(s => s.slice(-6) >= day.slice(0, 4) + day.slice(5, 7)).map(s => [xOf(s), at(s, day)]).filter(p => p[1] != null),
+  })).filter(s => s.data.length > 1);
+  if (sids.includes("FEDTARMD")) o.series.push({ name: "点阵图中位数（年末）", type: "scatter", symbol: "diamond", symbolSize: 11,
+    itemStyle: { color: css("--ink2") }, data: series("FEDTARMD").filter(p => p[1] != null).map(p => [p[0].slice(0, 4) + "-12-31", p[1]]) });
+  o.xAxis = timeX(); o.yAxis = valY("%"); o.tooltip.valueFormatter = v => fmt(v, "%"); o.legend.show = true;
   return o;
 }
 
@@ -313,6 +352,7 @@ function render() {
     const div = document.createElement("div"); div.className = "chart"; card.appendChild(div);
     const opt = ind.chart === "bar" ? barOpt(ind.series[0]) : ind.chart === "stack" ? stackOpt(ind.series)
       : ind.chart === "sector" ? sectorOpt(ind.series) : ind.chart === "dots" ? dotsOpt(ind.series)
+      : ind.chart === "curve" ? curveOpt(ind.series)
       : lineOpt(ind.series, ind.chart === "rebased");
     if (ind.chart === "sector") div.style.height = "320px";
     mount(div, opt);

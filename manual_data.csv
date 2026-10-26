@@ -1,6 +1,47 @@
 # 手工录入数据：每行一条记录。ref 对应看板里的指标（见 monitor/indicators.py 中的 ref=...）。
-# value 填数字（可空），text 填文字说明。改完后运行 ./update.sh 即可进入数据库和看板。
-# 可用的 ref：forward_pe, ism_no_inv, subprime_auto_60d, umich_5_10, nfib_price_plans, sofr_implied_eoy,
-#   fomc_dissent, debt_ceiling, auction_tail, default_rate, capex_guidance, tsmc_rev, korea_semi_exports,
-#   dram_spot, cds, neocloud_bond_yield, gpu_rental, model_arr, tokens, cloud_growth, vlcc_td3c, opec_spare, cb_gold
+# value 填数字（可空），text 填文字说明，source 填数字出处的网址。改完后运行 ./update.sh 即可进入数据库和看板。
+# 只录在网页上实际读到的数字，不估算；区间型指引的 value 取区间中值，原区间写在 text 里。
+# 可用的 ref：forward_pe, subprime_auto_60d, nfib_price_plans, sofr_implied_eoy, fomc_dissent, debt_ceiling, auction_tail,
+#   default_rate, capex_guidance, korea_semi_exports, dram_spot, cds, neocloud_bond_yield, gpu_rental, model_arr, tokens,
+#   cloud_growth, vlcc_td3c, opec_spare, cb_gold
 ref,date,item,value,text,source
+korea_semi_exports,2026-01-01,产业部半导体出口（初值）,205.4,同比 +102.7%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20260201/exports-jump-34-to-658-bil-in-january-on-robust-chip-demand
+korea_semi_exports,2026-02-01,产业部半导体出口（初值）,251.6,同比 +160.8%；次月 1 日公布,https://www.koreatimes.co.kr/amp/economy/20260301/exports-jump-29-to-record-feb-high-on-surging-chip-demand
+korea_semi_exports,2026-03-01,产业部半导体出口（初值）,328.3,同比 +151.4%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20260401/koreas-monthly-exports-top-80-bil-mark-for-1st-time-in-march
+korea_semi_exports,2026-04-01,产业部半导体出口（初值）,319.0,同比 +173.5%；次月 1 日公布,https://view.asiae.co.kr/en/article/2026050110221417847
+korea_semi_exports,2026-05-01,产业部半导体出口（初值）,371.6,同比 +169.4%；次月 1 日公布,https://view.asiae.co.kr/en/article/2026060110205435664
+korea_semi_exports,2026-06-01,产业部半导体出口（初值）,448.2,同比 约为上年同期三倍（nearly tripled）；次月 1 日公布,https://www.koreatimes.co.kr/economy/20260701/koreas-monthly-exports-hit-100-bilfor-1st-time-in-june
+korea_semi_exports,2026-07-01,产业部半导体出口（初值）,410.1,同比 +178.8%；次月 1 日公布,https://view.asiae.co.kr/en/article/2026080109133165502
+korea_semi_exports,2026-08-01,产业部半导体出口（初值）,466.5,同比 +209%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20260901/koreas-monthly-exports-surge-687-in-august-on-strong-chip-shipments
+korea_semi_exports,2026-09-01,产业部半导体出口（初值）,603.0,同比 +263%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20261001/koreas-sept-exports-hit-record-1209-bil-on-robust-chip-sales
+capex_guidance,2024-07-31,Meta 2024,38.5,区间 $37–40B（此前 $35–40B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680124000065/meta-06302024xexhibit991.htm
+capex_guidance,2024-10-30,Meta 2024,39,区间 $38–40B（此前 $37–40B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680124000077/meta-09302024xexhibit991.htm
+capex_guidance,2025-01-29,Meta 2025,62.5,区间 $60–65B；2024 年实际 $39.23B；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680125000014/meta-12312024xexhibit991.htm
+capex_guidance,2025-04-30,Meta 2025,68,区间 $64–72B（此前 $60–65B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680125000050/meta-03312025xexhibit991.htm
+capex_guidance,2025-07-30,Meta 2025,69,区间 $66–72B（此前 $64–72B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828025036719/meta-06302025xexhibit991.htm
+capex_guidance,2025-10-29,Meta 2025,71,区间 $70–72B（此前 $66–72B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828025047114/meta-09302025xexhibit991.htm
+capex_guidance,2026-01-28,Meta 2026,125,区间 $115–135B；2025 年实际 $72.22B；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828026003832/meta-12312025xexhibit991.htm
+capex_guidance,2026-04-29,Meta 2026,135,区间 $125–145B（此前 $115–135B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828026028364/meta-03312026xexhibit991.htm
+capex_guidance,2026-07-29,Meta 2026,137.5,区间 $130–145B（此前 $125–145B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828026050596/meta-06302026xexhibit991.htm
+capex_guidance,2026-10-21,Meta 2026,140,区间 $135–145B（此前 $130–145B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000162828026066700/meta-09302026xexhibit991.htm
+capex_guidance,2025-02-04,Alphabet 2025,75,约 $75B（2 月四季度业绩会给出，见该报道）,https://www.cnbc.com/2025/07/23/alphabet-google-q2-earnings.html
+capex_guidance,2025-07-23,Alphabet 2025,85,上调至 $85B（较 2 月 +$10B）,https://www.cnbc.com/2025/07/23/alphabet-google-q2-earnings.html
+capex_guidance,2025-10-29,Alphabet 2025,92,区间 $91–93B（此前 $85B）；数值为区间中值,https://www.cnbc.com/2025/10/29/alphabet-google-q3-earnings.html
+capex_guidance,2026-02-04,Alphabet 2026,180,区间 $175–185B；数值为区间中值,https://www.cnbc.com/2026/02/04/alphabet-googl-q4-2025-earnings.html
+capex_guidance,2026-04-29,Alphabet 2026,185,区间 $180–190B（此前 $175–185B）；称 2027 年将显著增加；数值为区间中值,https://www.cnbc.com/2026/04/29/alphabet-googl-q1-2026-earnings.html
+capex_guidance,2026-07-22,Alphabet 2026,200,区间 $195–205B（此前 $180–190B）；数值为区间中值,https://www.cnbc.com/2026/07/22/google-earnings-q2-goog-live-updates.html
+capex_guidance,2025-02-06,Amazon 2025,100,约 $100B（2024 年约 $83B）,https://www.cnbc.com/2025/02/06/amazon-amzn-q4-earnings-report-2024.html
+capex_guidance,2025-10-30,Amazon 2025,125,$125B（此前 $118B）,https://www.cnbc.com/2025/10/30/amazon-amzn-q3-earnings-report-2025.html
+capex_guidance,2026-02-05,Amazon 2026,200,约 $200B（2025 年约 $131B）,https://www.cnbc.com/2026/02/05/amazon-amzn-q4-earnings-report-2025.html
+capex_guidance,2026-07-30,Amazon 2026,220,$220B（此前 $200B，4 月维持不变；上调主要因内存涨价）,https://www.cnbc.com/2026/07/30/amazon-amzn-q2-earnings-report-2026.html
+capex_guidance,2025-01-03,微软 FY2025,80,财年（至 2025-06）约 $80B 用于 AI 数据中心（公司博客，CNBC 报道）,https://www.nbcnews.com/business/business-news/microsoft-expects-spend-80-billion-ai-enabled-data-centers-12-months-rcna186176
+capex_guidance,2026-04-29,微软 2026,190,自然年 2026 约 $190B，含约 $25B 元件涨价影响,https://www.cnbc.com/2026/04/29/microsoft-msft-q3-earnings-report-2026.html
+capex_guidance,2026-07-29,微软 2026,175,报告口径约 $175B：数据中心使用年限延长，部分租约改为经营租赁、不计入资本开支；实际投资计划不变,https://letsdatascience.com/news/microsoft-keeps-ai-infrastructure-plan-as-reported-2026-cape-1ce1ad02
+capex_guidance,2025-09-09,甲骨文 FY2026,35,约 $35B（财年至 2026-05）,https://www.cnbc.com/2025/09/09/oracle-orcl-q1-earnings-report-2026.html
+capex_guidance,2025-12-10,甲骨文 FY2026,50,约 $50B（此前 $35B）,https://www.cnbc.com/2025/12/10/oracle-orcl-q2-earnings-report-2026.html
+capex_guidance,2026-03-10,甲骨文 FY2026,50,$50B（财报新闻稿）,https://www.sec.gov/Archives/edgar/data/1341439/000119312526100148/orcl-ex99_1.htm
+capex_guidance,2026-06-10,甲骨文 FY2027,70,净现金支出约 $70B，另有 $20–25B 客户预付款等不计入,https://www.cnbc.com/2026/06/10/oracle-orcl-q4-earnings-report-2026.html
+capex_guidance,2025-11-10,CoreWeave 2025,13,区间 $12–14B（上季度为 $20–23B，第三方数据中心交付延迟）；数值为区间中值,https://fortune.com/2025/11/10/coreweave-earnings-infrastructure-debt-ai-bubble/
+capex_guidance,2026-02-26,CoreWeave 2026,32.5,区间 $30–35B（2 月四季度业绩会给出，见该报道）；数值为区间中值,https://www.cnbc.com/2026/05/07/coreweave-crwv-q1-earnings-report-2026.html
+capex_guidance,2026-05-07,CoreWeave 2026,33,区间 $31–35B（此前 $30–35B）；数值为区间中值,https://www.cnbc.com/2026/05/07/coreweave-crwv-q1-earnings-report-2026.html
+capex_guidance,2026-08-11,CoreWeave 2026,37,区间 $35–39B（此前 $31–35B）；数值为区间中值,https://dashboard.channelchek.com/?p=104902

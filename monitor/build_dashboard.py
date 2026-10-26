@@ -2,11 +2,12 @@
 
 用法：python3 monitor/build_dashboard.py
 """
+import copy
 import json
 import math
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -28,13 +29,45 @@ def rnd(v):
     return float(f"{v:.5g}")
 
 
+def expand(sid, have, manual):
+    """看板配置里的几种简写，展开成实际序列：
+      ZQ_*          库里所有以 ZQ_ 开头的序列（利率期货合约随月份滚动，不在配置里写死）
+      ZQ_DEC+0/+1   今年/明年 12 月的联邦基金期货
+      M:ref         manual_data.csv 里该 ref 的数值记录，每个 item 一条序列"""
+    if sid.endswith("*"):
+        return sorted(k for k in have if k.startswith(sid[:-1]))
+    if sid.startswith("ZQ_DEC+"):
+        return [f"ZQ_{date.today().year + int(sid[7:])}12"]
+    if sid.startswith("M:"):
+        rows = [r for r in manual.get(sid[2:], []) if r[2] is not None]
+        return [f"{sid}:{item}" for item in dict.fromkeys(r[1] for r in rows)]
+    return [sid]
+
+
 def main():
     con = sqlite3.connect(DB)
     meta = {r[0]: dict(name=r[1], unit=r[2], freq=r[3], source=r[4], last_updated=r[6], last_obs=r[7],
                        n=r[8], status=r[9])
             for r in con.execute("SELECT * FROM series")}
-    needed = {s for t in THESES for i in t["indicators"] for s in i["series"]}
+    manual = {}
+    # 手工录入与自动抓取的事件（FOMC 异议等）同结构，按 ref 合并展示
+    for table in ("manual", "events"):
+        for ref, d, item, v, text, src in con.execute(f"SELECT * FROM {table} ORDER BY date"):
+            manual.setdefault(ref, []).append([d, item, v, text, src])
+    for rows in manual.values():
+        rows.sort(key=lambda r: r[0])
+    have = {r[0] for r in con.execute("SELECT DISTINCT series_id FROM observations")}
+    theses = copy.deepcopy(THESES)
     data = {}
+    for t in theses:
+        for ind in t["indicators"]:
+            ind["series"] = [x for sid in ind["series"] for x in expand(sid, have, manual)]
+            for sid in ind["series"]:
+                if sid.startswith("M:"):  # 手工数值记录当作普通序列画
+                    ref, item = sid[2:].split(":", 1)
+                    data[sid] = [[r[0], rnd(r[2])] for r in manual[ref] if r[1] == item and r[2] is not None]
+                    meta[sid] = dict(name=item, unit=ind["unit"] or "", source="manual", status="ok", n=len(data[sid]))
+    needed = {s for t in theses for i in t["indicators"] for s in i["series"] if not s.startswith("M:")}
     for sid in needed:
         if sid == "AUCTIONS":
             continue
@@ -54,10 +87,7 @@ def main():
         auctions["dealer_pct"] = (auctions["primary_dealer_accepted"] / comp * 100).round(1)
     auc = auctions[["auction_date", "security_type", "security_term", "offering_amt", "high_yield", "bid_to_cover",
                     "indirect_pct", "dealer_pct"]].astype(object).where(auctions.notna(), None).values.tolist() if not auctions.empty else []
-    manual = {}
-    for ref, d, item, v, text, src in con.execute("SELECT * FROM manual ORDER BY date"):
-        manual.setdefault(ref, []).append([d, item, v, text, src])
-    payload = dict(theses=THESES, meta=meta, data=data, auctions=auc, manual=manual,
+    payload = dict(theses=theses, meta=meta, data=data, auctions=auc, manual=manual,
                    built=datetime.now().strftime("%Y-%m-%d %H:%M"))
     html = TEMPLATE.read_text(encoding="utf-8").replace(
         "/*__DATA__*/null", json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"))

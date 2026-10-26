@@ -14,6 +14,7 @@
 import argparse
 import html as htmllib
 import io
+import json
 import logging
 import re
 import socket
@@ -22,11 +23,12 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import numpy as np
 import pandas as pd
@@ -35,9 +37,14 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from indicators import DERIVED, SERIES, START, THESES  # noqa: E402
 
+warnings.filterwarnings("ignore", message="The xlrd engine is deprecated")  # EIA、外汇局仍发 .xls
+logging.getLogger("pypdf").setLevel(logging.ERROR)  # FactSet 旧 PDF 的字体提示，不影响取数
+
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "macro.db"
 MANUAL = ROOT / "manual_data.csv"
+# 只有“当天值”、事后无法回补的序列（moomoo 选股器、DRAM 现货、GPU 租价）另存一份文本，删库重建也不丢
+SNAPSHOTS = ROOT / "data" / "snapshots.csv"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh) indicator-monitor research contact@example.com"}
 SEC_UA = {"User-Agent": "indicator-monitor research contact@example.com"}
 SESSION = requests.Session()
@@ -61,7 +68,10 @@ class RateLimiter:
 
 
 _SEC_LIMIT = RateLimiter(8)
-LIMITS = {"data.sec.gov": _SEC_LIMIT, "www.sec.gov": _SEC_LIMIT, "query1.finance.yahoo.com": RateLimiter(12)}
+LIMITS = {"data.sec.gov": _SEC_LIMIT, "www.sec.gov": _SEC_LIMIT, "query1.finance.yahoo.com": RateLimiter(12),
+          # 逐页/逐月抓取的来源放慢些
+          "mopsov.twse.com.tw": RateLimiter(4), "www.prnewswire.com": RateLimiter(4),
+          "advantage.factset.com": RateLimiter(4), "comtradeapi.un.org": RateLimiter(1)}
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +92,10 @@ CREATE TABLE IF NOT EXISTS auctions (
     PRIMARY KEY (cusip, auction_date)
 );
 CREATE TABLE IF NOT EXISTS manual (
+    ref TEXT, date TEXT, item TEXT, value REAL, text TEXT, source TEXT,
+    PRIMARY KEY (ref, date, item)
+);
+CREATE TABLE IF NOT EXISTS events (
     ref TEXT, date TEXT, item TEXT, value REAL, text TEXT, source TEXT,
     PRIMARY KEY (ref, date, item)
 );
@@ -113,6 +127,31 @@ def save_series(con, sid, s: pd.Series, meta, status="ok"):
     return len(rows)
 
 
+def save_events(con, rows):
+    """自动抓取的事件（如 FOMC 异议者及其主张），与 manual 表同结构，看板里和手工记录合并展示。"""
+    con.executemany("INSERT OR REPLACE INTO events VALUES (?,?,?,?,?,?)", rows)
+    con.commit()
+
+
+def record_snapshot(rows):
+    """rows: [(series_id, 日期, 数值, 来源)]，同一序列同一天只留最新一条。"""
+    cols = ["series_id", "date", "value", "source"]
+    old = pd.read_csv(SNAPSHOTS, dtype=str) if SNAPSHOTS.exists() else pd.DataFrame(columns=cols)
+    new = pd.DataFrame([(sid, pd.Timestamp(d).strftime("%Y-%m-%d"), v, src) for sid, d, v, src in rows], columns=cols)
+    df = pd.concat([old, new.astype(str)]).drop_duplicates(["series_id", "date"], keep="last")
+    df.sort_values(["series_id", "date"]).to_csv(SNAPSHOTS, index=False)
+
+
+def restore_snapshots(con):
+    if not SNAPSHOTS.exists():
+        return
+    df = pd.read_csv(SNAPSHOTS, dtype={"series_id": str, "date": str, "source": str})
+    for sid, g in df.groupby("series_id"):
+        meta = SERIES.get(sid) or dict(zip(("name", "unit"), DERIVED.get(sid, (sid, ""))), source=g["source"].iloc[-1],
+                                       code=sid)
+        save_series(con, sid, pd.Series(g["value"].astype(float).values, index=pd.to_datetime(g["date"])), meta)
+
+
 def mark_failed(con, sid, meta, err):
     row = con.execute("SELECT n_obs, last_obs FROM series WHERE series_id=?", (sid,)).fetchone()
     con.execute("INSERT OR REPLACE INTO series VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -129,22 +168,53 @@ def load(con, sid) -> pd.Series:
     return pd.Series(df["value"].values, index=pd.to_datetime(df["date"]), name=sid)
 
 
-def get(url, headers=None, tries=3, **kw):
+def get(url, headers=None, tries=3, method="GET", ok404=False, **kw):
+    """带限速与重试的请求。ok404=True 时 404 直接返回 None（按日期试探文件名的来源用）。"""
     lim = LIMITS.get(urlparse(url).hostname)
     for i in range(tries):
         try:
             if lim:
                 lim.wait()
-            r = SESSION.get(url, headers=headers, timeout=60, **kw)
+            r = SESSION.request(method, url, headers=headers, timeout=60, **kw)
             if r.status_code == 429:
                 time.sleep(5 * (i + 1))
                 continue
+            if ok404 and r.status_code == 404:
+                return None
             r.raise_for_status()
+            if "charset" not in r.headers.get("content-type", "").lower():
+                r.encoding = "utf-8"  # 不写字符集时 requests 按 ISO-8859-1 解码，美联储、外汇局等网页实为 UTF-8
             return r
         except requests.RequestException:
             if i == tries - 1:
                 raise
             time.sleep(2 * (i + 1))
+    raise requests.HTTPError(f"429 Too Many Requests: {url}")
+
+
+_cache, _cache_lock, _key_locks = {}, threading.Lock(), {}
+
+
+def cached(key, fn):
+    """同一来源的多条序列在不同线程里取时只下载、解析一次。"""
+    with _cache_lock:
+        lk = _key_locks.setdefault(key, threading.Lock())
+    with lk:
+        if key not in _cache:
+            _cache[key] = fn()
+    return _cache[key]
+
+
+def since(s, start):
+    """截取 start 之后的部分；空序列（RangeIndex）原样返回。"""
+    return s[s.index >= pd.Timestamp(start)] if len(s) else s
+
+
+def plain(html_text):
+    """网页正文转为单行纯文本，便于正则提取。"""
+    t = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", html_text)
+    t = htmllib.unescape(re.sub(r"<[^>]+>", " ", t))
+    return re.sub(r"\s+", " ", re.sub("[\u2010\u2011]", "-", t))  # 美联储声明里“1-1/2”常用不换行连字符
 
 
 # ---------------------------------------------------------------------------
@@ -174,16 +244,10 @@ CIK = {"MSFT": 789019, "GOOGL": 1652044, "AMZN": 1018724, "META": 1326801,
        "ORCL": 1341439, "CRWV": 1769628, "NBIS": 1513845}
 CAPEX_CONCEPTS = ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets",
                   "PaymentsForProceedsFromProductiveAssets"]
-_facts_cache = {}
-_facts_locks = {t: threading.Lock() for t in CIK}
-
-
 def sec_facts(ticker):
-    with _facts_locks[ticker]:  # 同一公司的资本开支和 RPO 在不同线程里取，只下载一次
-        if ticker not in _facts_cache:
-            url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK[ticker]:010d}.json"
-            _facts_cache[ticker] = get(url, headers=SEC_UA).json()
-    return _facts_cache[ticker]
+    # 同一公司的资本开支和 RPO 在不同线程里取，只下载一次
+    url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK[ticker]:010d}.json"
+    return cached(("sec", ticker), lambda: get(url, headers=SEC_UA).json())
 
 
 def _usd_rows(facts, concept):
@@ -408,9 +472,475 @@ def save_auctions(con, rows, meta):
     return len(rows)
 
 
+# ---------------------------------------------------------------------------
+# 原先列为“手工录入”、后来找到稳定免费来源的指标
+# ---------------------------------------------------------------------------
+def fetch_umich(code, start):
+    """密歇根大学消费者调查官网表格：PX_MD=1年、PX5_MD=5–10年通胀预期中位数（月度，1978 年起）。"""
+    df = cached("umich", lambda: pd.read_csv(io.StringIO(get("https://www.sca.isr.umich.edu/files/tbmpx1px5.csv").text)))
+    d = pd.to_datetime(df["Month"].str.strip() + " " + df["YYYY"].astype(str), format="%B %Y")
+    s = pd.Series(pd.to_numeric(df[code], errors="coerce").values, index=d)
+    return s[s.index >= pd.Timestamp(start)]
+
+
+SCE_URL = "https://www.newyorkfed.org/medialibrary/interactives/sce/sce/downloads/data/frbny-sce-data.xlsx"
+
+
+def fetch_sce(code, start):
+    """纽约联储消费者预期调查 SCE：code=one/three/five，即 1/3/5 年通胀预期中位数（月度，2013 年起）。"""
+    df = cached("sce", lambda: pd.read_excel(io.BytesIO(get(SCE_URL).content), sheet_name="Inflation expectations",
+                                             header=None))
+    head = next(i for i in range(15) if any(str(x).startswith("Median one-year") for x in df.iloc[i]))
+    col = [str(x).strip() for x in df.iloc[head]].index(f"Median {code}-year ahead expected inflation rate")
+    body = df.iloc[head + 1:, [0, col]].dropna()
+    d = pd.to_datetime(body.iloc[:, 0].astype(int).astype(str), format="%Y%m")
+    s = pd.Series(pd.to_numeric(body.iloc[:, 1], errors="coerce").values, index=d)
+    return s[s.index >= pd.Timestamp(start)]
+
+
+def hhdc_book():
+    # 文件名随季度变化（HHD_C_Report_2026Q2.xlsx）：从当前季度往前试，取最新一期
+    q = pd.Timestamp.today().to_period("Q")
+    for k in range(6):
+        p = q - k
+        url = ("https://www.newyorkfed.org/medialibrary/interactives/householdcredit/data/xls/"
+               f"HHD_C_Report_{p.year}Q{p.quarter}.xlsx")
+        try:
+            r = get(url, tries=1, ok404=True)
+        except requests.RequestException:
+            continue
+        if r is not None and r.content[:2] == b"PK":  # xlsx 是 zip 包；不存在时可能返回 HTML 页
+            return pd.read_excel(io.BytesIO(r.content), sheet_name=None, header=None)
+    raise ValueError("未找到最近 6 个季度的纽约联储家庭债务报告")
+
+
+def fetch_hhdc(code, start):
+    """纽约联储《家庭债务与信贷报告》：当季新进入严重拖欠（90天+）的余额占比，code=AUTO/CC 等（季度，2003 年起）。"""
+    book = cached("hhdc", hhdc_book)
+    df = next(d for d in book.values() if str(d.iat[0, 0]).startswith("New Seriously Delinquent"))
+    head = next(i for i in range(10) if code in [str(x).strip() for x in df.iloc[i]])
+    col = [str(x).strip() for x in df.iloc[head]].index(code)
+    body = df.iloc[head + 1:, [0, col]].dropna()
+    body = body[body.iloc[:, 0].astype(str).str.fullmatch(r"\d\d:Q\d")]  # 季度标签如 "03:Q1"
+    idx = pd.PeriodIndex([f"20{x[:2]}Q{x[-1]}" for x in body.iloc[:, 0]], freq="Q").to_timestamp()
+    s = pd.Series(pd.to_numeric(body.iloc[:, 1], errors="coerce").values, index=idx)
+    return s[s.index >= pd.Timestamp(start)]
+
+
+FACTSET_PDF = ("https://advantage.factset.com/hubfs/Website/Resources%20Section/Research%20Desk/"
+               "Earnings%20Insight/EarningsInsight_{:%m%d%y}.pdf")
+FACTSET_PE = re.compile(r"forward\s*12\s*-\s*month\s*P/E\s*ratio\s*for\s*the\s*S&P\s*500\s*is\s*(\d+\.\d+)")
+
+
+def factset_week(friday):
+    """一期 FactSet《Earnings Insight》：周五发布，节假日提前到周四/周三。返回 (发布日, {pe, avg5, avg10})。"""
+    from pypdf import PdfReader  # 只有这一个来源用到，没装时只影响它
+    for k in range(3):
+        day = friday - pd.Timedelta(days=k)
+        r = get(FACTSET_PDF.format(day), ok404=True)
+        if r is None:
+            continue
+        txt = re.sub(r"\s+", " ", " ".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(r.content)).pages[:3]))
+        m = FACTSET_PE.search(txt)
+        if not m:
+            return day, {}
+        out = {"pe": float(m.group(1))}
+        tail = txt[m.end():m.end() + 300]  # 紧接着一句给出 5 年、10 年均值
+        for key, n in (("avg5", 5), ("avg10", 10)):
+            mm = re.search(rf"{n}\s*-\s*year\s*average\s*\(?\s*(?:of\s*)?(\d+\.\d+)", tail)
+            if mm:
+                out[key] = float(mm.group(1))
+        return day, out
+    return None, {}
+
+
+def factset_table(start):
+    today = pd.Timestamp.today().normalize()
+    # 该路径下的 PDF 从 2017 年起才有
+    fridays = pd.date_range(max(pd.Timestamp(start), pd.Timestamp("2017-01-01")), today, freq="W-FRI")
+    # 每份 PDF 1–4 MB：一年以前每月只取第一期，近一年逐周
+    old = today - pd.DateOffset(years=1)
+    dates = [d for d in fridays if d >= old or d.day <= 7]
+    with ThreadPoolExecutor(4) as ex:
+        res = list(ex.map(factset_week, dates))
+    return pd.DataFrame({d: v for d, v in res if d is not None and v}).T.sort_index()
+
+
+def fetch_factset(code, start):
+    """FactSet 免费周报 PDF：标普500 远期12个月市盈率及其 5 年、10 年均值（2017 年起）。"""
+    df = cached(("factset", start), lambda: factset_table(start))
+    return df[code].dropna() if code in df else pd.Series(dtype=float)
+
+
+def fetch_mops(code, start):
+    """证交所公开资讯观测站“上市公司营业收入汇总表”：每月一页（上月营收在次月 10 日前公布），千元新台币→亿元。"""
+    months = pd.period_range(pd.Timestamp(start), pd.Timestamp.today(), freq="M")
+
+    def one(p):
+        r = get(f"https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_{p.year - 1911}_{p.month}_0.html", ok404=True)
+        if r is None:
+            return None
+        m = re.search(rf"(?i)<td[^>]*>\s*{code}\s*</td>\s*<td[^>]*>[^<]*</td>\s*<td[^>]*>\s*([\d,]+)\s*</td>",
+                      r.content.decode("cp950", errors="replace"))
+        return float(m.group(1).replace(",", "")) / 1e5 if m else None
+
+    with ThreadPoolExecutor(4) as ex:
+        vals = list(ex.map(one, months))
+    return pd.Series({p.to_timestamp(): v for p, v in zip(months, vals) if v is not None}, dtype=float)
+
+
+FED = "https://www.federalreserve.gov"
+
+
+def frac(s):
+    """'3-3/4' -> 3.75，'1/4' -> 0.25，'1' -> 1.0"""
+    return sum(float(a) / float(b) if b else float(a) for a, _, b in (x.partition("/") for x in s.split("-")))
+
+
+NUM = r"\d+(?:\.\d+)?(?:-\d+/\d+|/\d+)?"
+
+
+def rate_view(snip):
+    """一段话里的利率主张：(方向 +1/0/−1, 幅度, 目标区间上限)；看不出方向时返回 None。"""
+    if re.search(r"no change|maintain|leave|unchanged|keep", snip):
+        sign = 0
+    elif re.search(r"\b(lower|reduc|cut)", snip):
+        sign = -1
+    elif re.search(r"\b(raise|increas)", snip):
+        sign = 1
+    else:
+        return None
+    by = re.search(rf"by ({NUM}) percentage point|by (\d+) basis points", snip)
+    mag = (frac(by.group(1)) if by.group(1) else int(by.group(2)) / 100) if by else None
+    rng = re.search(rf"to ({NUM})(?: percent)? to ({NUM}) percent", snip)
+    return sign, mag, frac(rng.group(2)) if rng else None
+
+
+def dissent_label(act, reason):
+    """异议者主张 vs 实际决议：只看“preferred ...”从句；主张比决议宽松为鸽、更紧为鹰。分不清时返回空串。"""
+    m = re.search(r"prefer(?:red|s)? (?:at this meeting )?(.{0,150})", reason)
+    want = rate_view(m.group(1)) if m else None
+    if not want:
+        return ""
+    act = act or (0, None, None)  # 早年声明没有“decided to”，基本都是维持零利率
+    if act[2] is not None and want[2] is not None:  # 两边都写了目标区间，直接比上限
+        diff = want[2] - act[2]
+    else:
+        level = lambda v: v[0] * (v[1] if v[1] is not None else 0.25)  # noqa: E731
+        diff = level(want) - level(act)
+    if abs(diff) < 1e-9:  # 利率方向与决议相同，异议在别处（前瞻指引、缩表节奏等）
+        return ""
+    what = "维持" if want[0] == 0 else ("加息" if want[0] > 0 else "降息") + (f"{want[1] * 100:.0f}bp" if want[1] else "")
+    return f"主张{what}（{'鸽' if diff < 0 else '鹰'}）"
+
+
+def fomc_statement(url):
+    """一份议息声明的投票：返回 (异议票数, 决议说明, [(异议者, 主张)])；不是议息声明时返回 None。"""
+    txt = plain(get(url).text)
+    # 决议只看联邦基金利率目标区间那一句（“decided to reduce the pace of asset purchases”之类不算）
+    m = re.search(r"decided (?:today )?to ([^.]{0,40}target range for the federal funds rate[^.]{0,80})", txt)
+    act = rate_view(m.group(1)) if m else \
+        (0, None, None) if re.search(r"(?:will maintain|reaffirmed its view)[^.]{0,80}target range", txt) else None
+    action = "" if not act else "维持利率" if act[0] == 0 else \
+        f"{'加' if act[0] > 0 else '降'}息{act[1] * 100:.0f}bp" if act[1] else \
+        f"{'加' if act[0] > 0 else '降'}息（上限至 {act[2]:g}%）" if act[2] is not None else \
+        f"{'加' if act[0] > 0 else '降'}息"
+    m = re.search(r"Voting against (?:the |this )?(?:[a-z]+ ){0,2}?(?:action|policy)\s+(?:was|were):?\s*(.*?)"
+                  r"(?= For media inquiries| Implementation Note| Last Update| Statement Regarding| Related Information|$)",
+                  txt)
+    if not m:
+        tally = re.search(r"by a (\d+)\s*[–-]\s*(\d+) vote", txt)  # 2026 年起有的声明只写票数、不列异议者
+        if tally:
+            return int(tally.group(2)), action, []
+        return (0, action, []) if "Voting for" in txt else None
+    # 按逗号、分号、and、句号切开：形如人名的片段即一位异议者，其后的 who ... 是理由
+    out, cur = [], None
+    for p in re.split(r",\s*(?:and\s+)?|;\s*(?:and\s+)?|\s+and\s+(?=[A-Z])|(?<=[a-z]{2})\.\s+(?=[A-Z])", m.group(1)):
+        p = p.strip()
+        if re.fullmatch(r"[A-Z][a-z]+(?: [A-Z]\.)?(?: [A-Z][a-zA-Z'\-]+){1,2}\.?", p):
+            cur = [p.rstrip("."), ""]
+            out.append(cur)
+        elif cur is not None:
+            cur[1] += (" " if cur[1] else "") + p
+    for i in range(len(out) - 2, -1, -1):  # “A and B, who preferred ...”：理由写在最后一人后面，前面的人共用
+        out[i][1] = out[i][1] or out[i + 1][1]
+    return len(out), action, [(n, dissent_label(act, r) or r[:140]) for n, r in out]
+
+
+def fetch_fomc(_, start):
+    """美联储议息声明（2010 年起）：每次会议的异议票数；异议者及其主张另存为事件，看板表格展示。"""
+    start = pd.Timestamp(start)
+    pages = [get(f"{FED}/monetarypolicy/fomccalendars.htm").text]
+    have = {int(y) for y in re.findall(r"monetary(\d{4})\d{4}a\.htm", pages[0])}
+    for y in range(start.year, pd.Timestamp.today().year + 1):
+        if y not in have:  # 近五年在日历页，更早的在逐年的历史页
+            r = get(f"{FED}/monetarypolicy/fomchistorical{y}.htm", ok404=True)
+            if r is not None:
+                pages.append(r.text)
+    dates = sorted({d for p in pages for d in re.findall(r"/newsevents/press(?:releases)?/monetary/?(\d{8})a\.htm", p)
+                    if pd.Timestamp(d) >= start})
+    urls = [f"{FED}/newsevents/pressreleases/monetary{d}a.htm" for d in dates]
+    with ThreadPoolExecutor(4) as ex:
+        res = list(ex.map(fomc_statement, urls))
+    s, events = {}, []
+    for d, url, r in zip(dates, urls, res):
+        if r is None:
+            continue
+        n, action, who = r
+        day = pd.Timestamp(d)
+        s[day] = n
+        if n:
+            detail = "；".join(f"{name}：{why}" for name, why in who) or "声明只公布票数，未列异议者"
+            events.append(("fomc_dissent", f"{day:%Y-%m-%d}", "异议", n, f"{action}；{detail}", url))
+    return pd.Series(s, dtype=float), events
+
+
+def fetch_mspd(code, start):
+    """财政部《公共债务月报》表二（2001 年起）：法定债务上限、受上限约束的债务，百万美元→万亿美元。
+    暂停上限期间表中上限记为 0，按缺失处理。"""
+    def load():
+        js = get("https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_2", params={
+            "fields": "record_date,debt_limit_class1_desc,total_mil_amt,src_line_nbr",
+            "filter": "debt_limit_class1_desc:in:(Statutory Debt Limit,Total Public Debt Subject to Limit)",
+            "page[size]": 10000}).json()
+        return pd.DataFrame(js["data"])
+    df = cached("mspd", load)
+    df = df[df["debt_limit_class1_desc"] == code].copy()
+    # 2011 年以前表中有两行“受限债务”（加上担保债务前的小计与合计），取同月最后一行
+    df["n"] = pd.to_numeric(df["src_line_nbr"])
+    df = df.sort_values(["record_date", "n"]).drop_duplicates("record_date", keep="last")
+    s = pd.Series(pd.to_numeric(df["total_mil_amt"], errors="coerce").values / 1e6, index=pd.to_datetime(df["record_date"]))
+    s = s.where(s > 0).sort_index()
+    return s[s.index >= pd.Timestamp(start)]
+
+
+STEO_FILES = ["archives/jan14_base.xlsx", "archives/jan18_base.xlsx", "archives/jan22_base.xlsx", "xls/STEO_m.xlsx"]
+
+
+def steo_rows(book, code):
+    meta = {str(r[0]).strip(): r[3] for r in book["Dates"].itertuples(index=False)}
+    begin = int(meta["Table Beginning Year---"])
+    for name, df in book.items():
+        hit = df[df.iloc[:, 0].astype(str).str.strip().str.lower() == code]
+        if len(hit):
+            v = pd.to_numeric(hit.iloc[0, 2:], errors="coerce")
+            return pd.Series(v.values, index=pd.date_range(f"{begin}-01-01", periods=len(v), freq="MS")), \
+                meta.get("Last Historical Month---")
+    return None, None
+
+
+def fetch_steo(code, start):
+    """EIA 短期能源展望 STEO 全量表：当期文件只含近 4 年，更早的用各年 1 月版归档拼接（各取当时的历史月份）。
+    code 加后缀 ":f" 取当期报告的预测段。"""
+    code, _, part = code.partition(":")
+    books = cached("steo", lambda: [pd.read_excel(io.BytesIO(get("https://www.eia.gov/outlooks/steo/" + f).content),
+                                                  sheet_name=None, header=None) for f in STEO_FILES])
+    hist, fc = pd.Series(dtype=float), pd.Series(dtype=float)
+    for f, book in zip(STEO_FILES, books):
+        s, last = steo_rows(book, code)
+        if s is None:
+            continue
+        if pd.isna(last):  # 早期归档没有这一栏：1 月版的历史截至上年 12 月
+            last = (2000 + int(re.search(r"jan(\d\d)", f).group(1)) - 1) * 100 + 12
+        cut = pd.Timestamp(year=int(last) // 100, month=int(last) % 100, day=1)
+        hist = s[s.index <= cut].combine_first(hist)  # 新版覆盖旧版的修订
+        fc = s[s.index > cut]
+    s = (fc if part == "f" else hist).dropna()
+    return s[s.index >= pd.Timestamp(start)]
+
+
+SAFE = "https://www.safe.gov.cn"
+
+
+def fetch_safe_gold(_, start):
+    """国家外汇管理局“官方储备资产”年表（2015 年 6 月起）：黄金储备，万盎司换算为吨。
+    每个年度页面挂着当年历次更新的文件（及往年文件），按发布日期依次读取，后发布的覆盖先发布的。"""
+    page = lambda u: get(u).text  # noqa: E731
+    files = set()
+    for href, label in re.findall(r'href="(/safe/\d{4}/\d{4}/\d+\.html)"[^>]*>\s*官方储备资产（([^）]*)）',
+                                  page(f"{SAFE}/safe/whcb/index.html")):
+        if max(int(y) for y in re.findall(r"\d{4}", label)) >= pd.Timestamp(start).year:
+            files |= {urljoin(SAFE + href, f) for f in re.findall(r'href="([^"]+\.xlsx?)"', page(SAFE + href))}
+    out = {}
+    for url in sorted(files, key=lambda u: re.search(r"/(\d{8})/", u).group(1) if re.search(r"/(\d{8})/", u) else ""):
+        for df in pd.read_excel(io.BytesIO(get(url).content), sheet_name=None, header=None).values():
+            months = {}  # 列号 -> 月份。表头行首格为“项目 Item”，月份存成小数（2026.1 即 10 月）
+            for i in range(min(10, len(df))):
+                if "Item" not in str(df.iat[i, 0]):
+                    continue
+                for j, c in enumerate(df.iloc[i]):
+                    m = re.fullmatch(r"(\d{4})\.(\d\d)", f"{c:.2f}" if isinstance(c, float) else str(c).strip())
+                    if m and 1 <= int(m.group(2)) <= 12:
+                        months[j] = pd.Timestamp(year=int(m.group(1)), month=int(m.group(2)), day=1)
+            for i in range(len(df)):
+                for j, c in enumerate(df.iloc[i]):
+                    m = re.fullmatch(r"([\d.]+)\s*万盎司", str(c).strip())
+                    if m and j in months:
+                        out[months[j]] = float(m.group(1)) * 0.311034768  # 1 万盎司 = 0.311 吨
+    return since(pd.Series(out, dtype=float).sort_index(), start)
+
+
+def fetch_gld(_, start):
+    """SPDR Gold Shares 官网历史档案（2004 年起）：GLD 信托持有黄金吨数，日度。"""
+    raw = get("https://api.spdrgoldshares.com/api/v1/historical-archive",
+              params=dict(product="gld", exchange="NYSE", lang="en")).content
+    df = pd.read_excel(io.BytesIO(raw), sheet_name="US GLD Historical Archive")
+    col = next(c for c in df.columns if str(c).strip().lower().startswith("tonnes of gold"))
+    d = pd.to_datetime(df.iloc[:, 0].astype(str).str.strip(), format="%d-%b-%Y", errors="coerce")
+    s = pd.Series(pd.to_numeric(df[col], errors="coerce").values, index=d)
+    s = s[s.index.notna()]
+    return s[s.index >= pd.Timestamp(start)]
+
+
+ISM_LIST = "https://www.prnewswire.com/news/institute-for-supply-management/?page={}&pagesize=100"
+MONTHS = "january february march april may june july august september october november december".split()
+# 各报告“AT A GLANCE”表里要取的行，按表中先后顺序查找（Inventories 先于 Customers' Inventories 出现）
+ISM_ROWS = {"M": [("PMI", r"PMI"), ("New Orders", r"New Orders"), ("Inventories", r"Inventories"), ("Prices", r"Prices")],
+            "S": [("PMI", r"(?:PMI|NMI)"), ("Prices", r"Prices")]}
+
+
+def ism_release(url):
+    """一份 ISM 月报：返回 (类型 M/S, 报告月份, {行: (本月, 上月)})；取不到时返回 None。"""
+    try:
+        txt = plain(get(url, tries=5).text)  # PR Newswire 偶尔 503
+    except requests.RequestException:
+        return None
+    g = re.search(r"AT A GLANCE", txt)
+    # 制造业表头“MANUFACTURING AT A GLANCE September 2026”；服务业“SERVICES SURVEY RESULTS AT A GLANCE
+    # COMPARISON OF ... SEPTEMBER 2026”（早年叫 NON-MANUFACTURING / NMI）
+    m = g and re.search(rf"(?i)\b({'|'.join(MONTHS)})\s+((?:\d\s*){{4}})", txt[g.end():g.end() + 200])
+    if not m:
+        return None
+    head = txt[max(0, g.start() - 60):g.start()]
+    kind = "S" if re.search(r"SERVICES|NON-MANUFACTURING|NMI", head) else "M"
+    month = pd.Timestamp(year=int(re.sub(r"\s", "", m.group(2))), month=MONTHS.index(m.group(1).lower()) + 1, day=1)
+    vals, pos = {}, g.end() + m.end()
+    for key, pat in ISM_ROWS[kind]:
+        mm = re.compile(pat + r"\s*®?\s*(\d+(?:\.\d+)?)\s*%?\s+(\d+(?:\.\d+)?)").search(txt, pos)
+        if mm and mm.start() - pos < 600:
+            vals[key] = (float(mm.group(1)), float(mm.group(2)))
+            pos = mm.end()
+    return kind, month, vals
+
+
+def ism_table(start):
+    """PR Newswire 上 ISM 发布的制造业/服务业月报（2018 年起）。每期给出本月和上月值，上月值以下一期的修订为准。"""
+    start = pd.Timestamp(start) - pd.DateOffset(months=1)
+    urls = []
+    for page in range(1, 10):
+        try:
+            html = get(ISM_LIST.format(page), tries=5).text
+        except requests.RequestException:
+            if page == 1:
+                raise
+            break  # 更早的列表页取不到就用已有的
+        links = re.findall(r'href="(/news-releases/[^"]+?\.html)"', html)
+        links = [u for u in dict.fromkeys(links) if re.search(r"report-on-business|pmi-report", u)
+                 and not re.search(r"hospital|semiannual|seasonal|economic-growth|correction", u)]
+        if not links:
+            break
+        oldest = None
+        for u in links:
+            m = re.search(rf"-({'|'.join(MONTHS)})-(\d{{4}})-", u)
+            month = pd.Timestamp(year=int(m.group(2)), month=MONTHS.index(m.group(1)) + 1, day=1) if m else None
+            if month is None or month >= start:  # 早年的链接不含年份，只能下载后看正文
+                urls.append("https://www.prnewswire.com" + u)
+            oldest = month if month is not None and (oldest is None or month < oldest) else oldest
+        if oldest is not None and oldest < start:
+            break
+    with ThreadPoolExecutor(4) as ex:
+        res = [r for r in ex.map(ism_release, urls) if r]
+    table = {}
+    for kind, month, vals in sorted(res, key=lambda r: r[1]):
+        for key, (cur, prev) in vals.items():
+            col = table.setdefault(f"{kind}:{key}", {})
+            col[month] = cur
+            col[month - pd.DateOffset(months=1)] = prev
+    return {k: pd.Series(v, dtype=float).sort_index() for k, v in table.items()}
+
+
+def fetch_ism(code, start):
+    return since(cached(("ism", start), lambda: ism_table(start)).get(code, pd.Series(dtype=float)), start)
+
+
+NFIB_NET = {"price_change_plan": (1, 2), "price_change": (3, 1)}  # 净占比 = 答案a − 答案b
+
+
+def fetch_nfib(code, start):
+    """NFIB 小企业调查官方数据接口：按各答案的回答数算净占比，与官网“未季调”口径一致（官网季调在网页前端计算）。"""
+    body = {"app_name": "sbet", "params": [{"name": k, "param_type": "IN", "value": v} for k, v in [
+        ("minYear", pd.Timestamp(start).year), ("minMonth", 1), ("maxYear", date.today().year), ("maxMonth", 12),
+        ("questions", code), ("industry", ""), ("employee", ""), ("statev", "")]]}
+    df = pd.DataFrame(get("https://api.nfib-sbet.org/rest/sbetdb/_proc/getTotals2", method="POST", json=body,
+                          headers={"X-DreamFactory-Application-Name": "sbet"}).json())
+    df["d"] = pd.to_datetime(dict(year=df["time_year"], month=df["time_month"], day=1))
+    cnt = df.pivot_table(index="d", columns="resp_acode", values="totalcount", aggfunc="sum").fillna(0)
+    a, b = NFIB_NET[code]
+    return (cnt.get(a, 0) - cnt.get(b, 0)) / cnt.sum(axis=1) * 100
+
+
+def fetch_comtrade(code, start):
+    """UN Comtrade 公共预览接口（免 key，每次只能查一个月）：韩国按 HS 编码的出口额，美元→亿美元。
+    月度，2015 年起，约滞后半年以上——比韩国产业部每月 1 日的初值晚得多，用作长历史。"""
+    out = {}
+    for p in pd.period_range(max(pd.Timestamp(start), pd.Timestamp("2015-01-01")), pd.Timestamp.today(), freq="M"):
+        try:
+            js = get("https://comtradeapi.un.org/public/v1/preview/C/M/HS", params=dict(
+                reporterCode=410, period=f"{p.year}{p.month:02d}", cmdCode=code, flowCode="X", partnerCode=0,
+                partner2Code=0, customsCode="C00", motCode=0)).json()
+        except requests.HTTPError as e:
+            # 免 key 接口有每日调用额度（约百余次）：先存下已取到的月份，下次运行从最后一个月接着取
+            if out and e.response is not None and e.response.status_code == 403:
+                print(f"  Comtrade 额度用完，已取到 {max(out):%Y-%m}，下次运行继续", flush=True)
+                break
+            raise
+        for d in js.get("data") or []:
+            out[p.to_timestamp()] = d["primaryValue"] / 1e8
+    return pd.Series(out, dtype=float)
+
+
+def fetch_yahoo_fut(code, start):
+    """CME/CBOT 利率期货（联邦基金 ZQ、3个月 SOFR SR3）：隐含利率 = 100 − 价格。"""
+    s = fetch_yahoo(code, start).dropna()
+    # Yahoo 的 SR3 远月合约混有几年前的零星旧数据：在交合约应连续成交，只保留最后一个超过 60 天空档之后的部分
+    gap = s.index.to_series().diff() > pd.Timedelta(days=60)
+    if gap.any():
+        s = s[s.index >= gap[gap].index[-1]]
+    return 100 - s
+
+
+def fetch_dramx(code, start):
+    """DRAMeXchange 首页 DRAM 现货价：只公布当日盘均价、没有免费历史，每次运行记一行（存入 data/snapshots.csv）。"""
+    txt = cached("dramx", lambda: plain(get("https://www.dramexchange.com/").text))
+    i = txt.find(code)
+    m = re.match(r"\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(-?[\d.]+)\s*%", txt[i + len(code):]) \
+        if i >= 0 else None
+    upd = re.findall(r"Last Update:\s*([A-Z][a-z]{2})\.?\s*(\d{1,2})\s+(\d{4})", txt[:max(i, 0)])
+    if not m or not upd:
+        raise ValueError(f"首页未找到 {code} 的报价，页面格式可能变了")
+    mon, day, year = upd[-1]  # 该表上方最近的“Last Update”
+    return pd.Series([float(m.group(5))], index=[pd.Timestamp(f"{day} {mon} {year}")])
+
+
+def fetch_vast(code, start):
+    """Vast.ai 公开市场的按需挂单（含已租出）：每卡每小时价格中位数。只有当前报价，每次运行记一行。"""
+    q = json.dumps({"gpu_name": {"eq": code}, "type": "on-demand"})
+    offers = get("https://console.vast.ai/api/v0/bundles/", params={"q": q}).json().get("offers", [])
+    px = [o["dph_total"] / o["num_gpus"] for o in offers if o.get("num_gpus") and o.get("dph_total")]
+    if len(px) < 3:
+        raise ValueError(f"{code} 挂单不足 3 个")
+    return pd.Series([float(np.median(px))], index=[pd.Timestamp(date.today())])
+
+
+# 同一次下载出多条序列的来源
+SHARED_SOURCES = {"factset", "ism", "steo", "nyfed_sce", "nyfed_hhdc", "mspd", "umich", "dramx"}
+
 FETCHERS = {"fred": fetch_fred, "yahoo": fetch_yahoo, "sec_capex": fetch_sec_capex, "sec_rpo": fetch_sec_rpo,
             "cftc": fetch_cftc, "nyfed_srf": fetch_nyfed_srf, "lw_rstar": fetch_lw_rstar, "eia": fetch_eia,
-            "auctions": fetch_auctions}
+            "auctions": fetch_auctions, "umich": fetch_umich, "nyfed_sce": fetch_sce, "nyfed_hhdc": fetch_hhdc,
+            "factset": fetch_factset, "mops": fetch_mops, "fomc": fetch_fomc, "mspd": fetch_mspd, "steo": fetch_steo,
+            "safe_gold": fetch_safe_gold, "gld": fetch_gld, "ism": fetch_ism, "nfib": fetch_nfib,
+            "comtrade": fetch_comtrade, "yahoo_fut": fetch_yahoo_fut, "dramx": fetch_dramx, "vast": fetch_vast}
 
 
 # ---------------------------------------------------------------------------
@@ -495,6 +1025,9 @@ def derive(con):
         ex = (fpi - ai).dropna()
         out["X_FPI_EX_AI"] = ex
         out["X_FPI_EX_AI_YOY"] = yoy(ex)
+    out["X_ISM_NO_INV"] = diff(L("ISM_NO"), L("ISM_INV"))
+    out["X_TSMC_YOY"] = yoy(L("TSMC_REV"))
+    out["X_KR_IC_YOY"] = yoy(L("KR_IC_EXP"))
     out["X_NEWORDER_YOY"] = yoy(L("NEWORDER"))
     out["X_ANXAVS_YOY"] = yoy(L("ANXAVS"))
     gold = L("GOLD")
@@ -593,6 +1126,7 @@ def moomoo_breadth(con):
             pct = cnt[0] / sum(cnt) * 100
             name, unit = DERIVED[sid]
             save_series(con, sid, pd.Series([pct], index=[d]), dict(name=name, unit=unit, source="moomoo", code=plate or "US"))
+            record_snapshot([(sid, d, pct, "moomoo")])
             print(f"✓ {sid:<14} {name}  {pct:.1f}%（{cnt[0]}/{sum(cnt)}，{d:%Y-%m-%d}）", flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"✗ moomoo 选股器宽度 {e!r}", flush=True)
@@ -633,21 +1167,31 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true", help="失败时打印完整 traceback")
     args = ap.parse_args()
     con = connect()
+    restore_snapshots(con)
     only = [x for x in args.only.split(",") if x]
     ok, fail = 0, []
     t0 = time.time()
+    starts = {}
+    for sid, meta in SERIES.items():
+        if only and sid not in only:
+            continue
+        if meta["source"] == "auctions":
+            ld = con.execute("SELECT MAX(auction_date) FROM auctions").fetchone()[0]
+            starts[sid] = START if args.full or not ld else (pd.Timestamp(ld) - pd.Timedelta(days=30)).strftime("%Y-%m-%d")
+        else:
+            ld = None if args.full else last_date(con, sid)
+            # 增量：回看一段时间以吸收修订；逐期下载文件的来源回看得短些（lookback 天）
+            lb = meta.get("lookback", 400)
+            starts[sid] = START if not ld else (pd.Timestamp(ld) - pd.DateOffset(days=lb)).strftime("%Y-%m-%d")
+    # 一次下载出多条序列的来源（FactSet 周报、ISM 月报等）统一用组内最早的起点，只下载一次
+    for src in SHARED_SOURCES:
+        group = [sid for sid in starts if SERIES[sid]["source"] == src]
+        for sid in group:
+            starts[sid] = min(starts[g] for g in group)
     jobs = {}
     with ThreadPoolExecutor(args.workers) as ex:
-        for sid, meta in SERIES.items():
-            if only and sid not in only:
-                continue
-            if meta["source"] == "auctions":
-                ld = con.execute("SELECT MAX(auction_date) FROM auctions").fetchone()[0]
-                st = START if args.full or not ld else (pd.Timestamp(ld) - pd.Timedelta(days=30)).strftime("%Y-%m-%d")
-            else:
-                ld = None if args.full else last_date(con, sid)
-                # 增量：回看一段时间以吸收修订
-                st = START if not ld else (pd.Timestamp(ld) - pd.DateOffset(days=400)).strftime("%Y-%m-%d")
+        for sid, st in starts.items():
+            meta = SERIES[sid]
             jobs[ex.submit(FETCHERS[meta["source"]], meta["code"], st)] = sid
         # 下载在线程池里并行，入库只在主线程（sqlite 连接不跨线程共享）
         for fut in as_completed(jobs):
@@ -658,7 +1202,15 @@ def main():
                 if meta["source"] == "auctions":
                     n = save_auctions(con, res, meta)
                 else:
-                    n = save_series(con, sid, res * meta["scale"] if meta.get("scale") else res, meta)
+                    if isinstance(res, tuple):  # (序列, 事件)
+                        res, events = res
+                        save_events(con, events)
+                    if meta.get("replace"):  # 预测段等整段替换的序列，先清掉旧值
+                        con.execute("DELETE FROM observations WHERE series_id=?", (sid,))
+                    res = res * meta["scale"] if meta.get("scale") else res
+                    n = save_series(con, sid, res, meta)
+                    if meta.get("snapshot"):
+                        record_snapshot([(sid, d, v, meta["source"]) for d, v in res.dropna().items()])
                 ok += 1
                 print(f"✓ {sid:<14} {meta['name']}  +{n}", flush=True)
             except Exception as e:  # noqa: BLE001
