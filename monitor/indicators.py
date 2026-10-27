@@ -243,11 +243,12 @@ DERIVED = {
 # ---------------------------------------------------------------------------
 # 看板结构
 # ---------------------------------------------------------------------------
-def ind(name, chart, series=(), note="", source="", ref=None, unit=None, links=(), nodata=""):
+def ind(name, chart, series=(), note="", source="", ref=None, unit=None, links=(), nodata="", right=()):
     """links：能查看该指标数据的网页 [(名称, 网址)]，卡片上可点击跳转。
-    nodata：原指标没有免费下载渠道时的说明，卡片上显示“原指标暂无数据”（有手工记录或自记快照时显示“无免费下载渠道”）。"""
+    nodata：原指标没有免费下载渠道时的说明，卡片上显示“原指标暂无数据”（有手工记录或自记快照时显示“无免费下载渠道”）。
+    right：放到右侧纵轴的序列（与其余序列量级差很大、放在一起会被压平时用），图例里标“（右轴）”。"""
     return dict(name=name, chart=chart, series=list(series), note=note, source=source,
-                ref=ref, unit=unit, links=[dict(label=k, url=u) for k, u in links], nodata=nodata)
+                ref=ref, unit=unit, links=[dict(label=k, url=u) for k, u in links], nodata=nodata, right=list(right))
 
 
 THESES = [
@@ -274,7 +275,7 @@ THESES = [
         ind("储蓄率", "line", ["PSAVERT"], "", "FRED"),
         ind("信用卡/车贷：新增严重拖欠与拖欠率", "line", ["NYF_CC_90", "NYF_AUTO_90", "DRCCLACBS", "DRCLACBS", "M:subprime_auto_60d"],
             "纽约联储：当季新进入 90 天以上拖欠的余额占比；商业银行拖欠率来自 FRED；惠誉次级车贷 ABS 60+ 逾期率为新闻稿数字",
-            "纽约联储 / FRED / 惠誉", ref="subprime_auto_60d", unit="%"),
+            "纽约联储 / FRED / 惠誉", ref="subprime_auto_60d", unit="%", right=["NYF_CC_90"]),
     ]),
     dict(id="inflation", title="美国通胀是否继续上行", indicators=[
         ind("CPI / 核心CPI / 核心PCE 同比", "line", ["X_CPI_YOY", "X_CORECPI_YOY", "X_COREPCE_YOY"], "", "FRED"),
@@ -317,11 +318,11 @@ THESES = [
         ind("美债拍卖：投标倍数、间接投标人占比", "auctions", ["AUCTIONS"], "尾差需发行前收益率（无免费源），可手工录入", "财政部 Fiscal Data", ref="auction_tail"),
     ]),
     dict(id="credit", title="公开市场信用利差是否走阔", indicators=[
-        ind("IG / HY 期权调整利差", "line", ["IG_OAS", "HY_OAS"], "FRED 只给最近约3年的ICE数据", "FRED（ICE）"),
+        ind("IG / HY 期权调整利差", "line", ["IG_OAS", "HY_OAS"], "FRED 只给最近约3年的ICE数据", "FRED（ICE）", right=["HY_OAS"]),
         ind("CCC − BB 利差", "line", ["X_CCC_BB"], "", "FRED（ICE）"),
         ind("长历史信用利差：Baa − 10年美债", "line", ["BAA10Y"], "", "FRED"),
-        ind("杠杆贷款ETF价格（替代）", "line", ["BKLN", "SRLN"], "LSTA贷款指数为付费数据", "Yahoo Finance"),
-        ind("CLO权益基金价格（替代）", "line", ["ECC", "OXLC"], "", "Yahoo Finance"),
+        ind("杠杆贷款ETF价格（替代）", "line", ["BKLN", "SRLN"], "LSTA贷款指数为付费数据", "Yahoo Finance", right=["SRLN"]),
+        ind("CLO权益基金价格（替代）", "line", ["ECC", "OXLC"], "", "Yahoo Finance", right=["OXLC"]),
         ind("不良债券占比 / 穆迪违约率 / CDX", "manual", [], "付费数据，见新闻时录入", "穆迪 / 标普 / Markit", ref="default_rate", unit="%"),
     ]),
     dict(id="ai_capex", title="AI资本开支的可持续性", indicators=[
@@ -332,7 +333,7 @@ THESES = [
         ind("台积电月营收同比", "line", ["X_TSMC_YOY"], "", "证交所公开资讯观测站"),
         ind("韩国半导体出口", "line", ["KR_IC_EXP", "M:korea_semi_exports"],
             "Comtrade 为海关 HS8542 集成电路口径（滞后约半年）；产业部每月 1 日公布的半导体出口初值手工录入",
-            "UN Comtrade / 韩国产业通商资源部", ref="korea_semi_exports", unit="亿美元"),
+            "UN Comtrade / 韩国产业通商资源部", ref="korea_semi_exports", unit="亿美元", right=["KR_IC_EXP"]),
         ind("服务器内存条现货价（DDR5 RDIMM 32GB）", "line", ["DRAM_DDR5_RDIMM_32G", "M:dram_spot"],
             "AI 服务器 CPU 侧用的就是 DDR5 RDIMM；DRAMeXchange 每周更新一次报价、没有免费历史，2026-10 起每次运行记录一次",
             "DRAMeXchange", ref="dram_spot", unit="美元",

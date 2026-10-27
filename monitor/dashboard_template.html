@@ -223,21 +223,24 @@ function withGaps(d) {
   return out;
 }
 
-function lineOpt(sids, rebase) {
+function lineOpt(sids, rebase, right = []) {
   const o = baseOpt();
   const us = [...new Set(sids.map(unit))];
   const u = rebase ? "" : us[0];
+  // 量级差很大的序列放右轴（ind.right），两侧各按自己的范围缩放；有右轴时不画末端数值标签，免得压住右轴刻度
+  const onRight = sid => !rebase && right.includes(sid), dual = sids.some(onRight);
   o.xAxis = timeX(); o.yAxis = valY(u);
   o.legend.show = sids.length > 1;
   o.tooltip.valueFormatter = v => fmt(v, u);
-  const pal = colors(), ends = sids.length > 1 && sids.length <= 4;
+  const pal = colors(), ends = !dual && sids.length > 1 && sids.length <= 4;
   o.series = sids.map((sid, i) => {
     let d = inRange(sid);
     if (rebase && d.length) { const b = d[0][1]; d = d.map(p => [p[0], (p[1] / b) * 100]); }
     // 预测段（_F）与对应的历史序列同色、虚线
     const base = sid.endsWith("_F") ? sids.indexOf(sid.slice(0, -2)) : -1;
     const color = pal[(base >= 0 ? base : i) % pal.length];
-    return { name: name(sid), type: "line", data: withGaps(d), showSymbol: d.length < 40 || sid.startsWith("M:"), symbolSize: 6,
+    return { name: name(sid) + (onRight(sid) ? "（右轴）" : ""), yAxisIndex: onRight(sid) ? 1 : 0,
+      type: "line", data: withGaps(d), showSymbol: d.length < 40 || sid.startsWith("M:"), symbolSize: 6,
       itemStyle: { color }, lineStyle: { width: 2, color, type: base >= 0 ? "dashed" : "solid" }, connectNulls: false, sampling: "lttb",
       // 有预测段的历史线不标末值（末端在图中间，会压住预测线），由预测段标
       endLabel: { show: ends && !sids.includes(sid + "_F"), formatter: p => fmt(p.value[1], u), color: css("--ink2"), fontSize: 11 },
@@ -246,6 +249,12 @@ function lineOpt(sids, rebase) {
   // 末端数值标签：右侧留出最长标签的宽度；末值相近时上下错开（labelLayout）
   const lastW = o.series.map(s => { const d = s.data.filter(p => p[1] != null); return d.length ? measure(fmt(d[d.length - 1][1], u), 11) : 0; });
   o.grid.right = ends ? Math.ceil(Math.max(...lastW)) + 14 : 16;
+  if (dual) {
+    // 某一侧只有一条线时，该侧刻度用这条线的颜色，方便对应；右轴不画网格线，免得两套网格错开
+    const tint = (ax, r) => { const k = sids.map((s, i) => onRight(s) === r ? i : -1).filter(i => i >= 0);
+      if (k.length === 1) ax.axisLabel.color = pal[k[0] % pal.length]; return ax; };
+    o.yAxis = [tint(valY(u), false), tint({ ...valY(unit(sids.find(onRight))), splitLine: { show: false } }, true)];
+  }
   if (rebase) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 100 }], lineStyle: { color: css("--axis"), type: "dashed" }, label: { show: false } };
   const zeroUnits = ["bp", "相关系数", "点", "对数偏离"];
   if (!rebase && zeroUnits.includes(u)) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 0 }], lineStyle: { color: css("--axis") }, label: { show: false } };
@@ -426,7 +435,7 @@ function render() {
     const opt = ind.chart === "bar" ? barOpt(ind.series[0]) : ind.chart === "stack" ? stackOpt(ind.series)
       : ind.chart === "sector" ? sectorOpt(ind.series) : ind.chart === "dots" ? dotsOpt(ind.series)
       : ind.chart === "curve" ? curveOpt(ind.series)
-      : lineOpt(ind.series, ind.chart === "rebased");
+      : lineOpt(ind.series, ind.chart === "rebased", ind.right || []);
     if (ind.chart === "sector") div.style.height = "320px";
     mount(div, opt);
     if (ind.note) card.insertAdjacentHTML("beforeend", `<div class="note" style="margin-bottom:0">${ind.note}</div>`);
