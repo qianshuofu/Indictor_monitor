@@ -9,11 +9,11 @@ __pycache__/
 # 本机设置（SEC 联系邮箱等），不公开
 .env
 
-# 数据库不进 git：./update.sh --full 可随时重建
+# data/ 整个文件夹只在本机，不进 git：数据库可用 ./update.sh --full 重建，快照和运行状态也只留在本机
+data/
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-data/update.log
 
 # dashboard.html 虽由 build_dashboard.py 生成，但要进 git：GitHub Pages 发布的就是它

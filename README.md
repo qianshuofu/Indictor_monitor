@@ -23,10 +23,10 @@ monitor/
   runbook.py             每日更新手册的辅助命令：今天该处理哪些浏览/搜索条目、写入手工记录
   dashboard_template.html  看板页面模板（ECharts）
   echarts.min.js         内联进看板，离线也能打开
-data/
-  macro.db               SQLite 数据库（不进 git，可随时重建）
-  snapshots.csv          只能取“当天值”的序列的历史快照（进 git，重建数据库时回灌）
-  runbook_state.json     每日更新里各浏览/搜索条目上次处理的日期（进 git）
+data/                    整个文件夹只在本机，不进 git
+  macro.db               SQLite 数据库（可随时重建）
+  snapshots.csv          只能取“当天值”的序列的历史快照（重建数据库时回灌）
+  runbook_state.json     每日更新里各浏览/搜索条目上次处理的日期
 dashboard.html           生成的看板（进 git，GitHub Pages 发布的就是它）
 index.html               GitHub Pages 首页，跳转到 dashboard.html
 .env                     本机设置，如 SEC 联系邮箱（不进 git）
@@ -86,7 +86,7 @@ Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（I
 
 ## 在线看板（GitHub Pages）
 
-仓库 https://github.com/qianshuofu/Indictor_monitor 是公开的，GitHub Pages 从 `main` 分支根目录发布，`index.html` 跳转到 `dashboard.html`（ECharts 已内联在看板里）。看板是写死数据的静态页面，本地重建后要提交 `dashboard.html` 并 `git push` 才会更新，定时任务每天最后会做这一步。数据库不进 git。提交用 GitHub 匿名邮箱（本仓库的 `git config user.email`），SEC 联系邮箱放在本机 `.env`，都不会公开。
+仓库 https://github.com/qianshuofu/Indictor_monitor 是公开的，GitHub Pages 从 `main` 分支根目录发布，`index.html` 跳转到 `dashboard.html`（ECharts 已内联在看板里）。看板是写死数据的静态页面，本地重建后要提交 `dashboard.html` 并 `git push` 才会更新，定时任务每天最后会做这一步。`data/` 文件夹（数据库、快照、运行状态）只在本机，不进 git。提交用 GitHub 匿名邮箱（本仓库的 `git config user.email`），SEC 联系邮箱放在本机 `.env`，都不会公开。
 
 ## 手工数据 `manual_data.csv`
 
