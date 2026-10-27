@@ -167,7 +167,17 @@ function fitLegend(c) {
   c.setOption({ grid: { top: rows * 14 + (rows - 1) * 10 + 10 + 12 } });
 }
 
-function mount(el, opt) { const c = echarts.init(el, null, { renderer: "svg" }); c.setOption(opt); fitLegend(c); charts.push(c); return c; }
+function mount(el, opt) { const c = echarts.init(el, null, { renderer: "svg" }); c.setOption(opt); fitLegend(c);
+  c.on("legendselectchanged", e => dualGrid(c, e.selected)); charts.push(c); return c; }
+
+// 双轴图：网格线默认由左轴画；左侧序列都被图例隐藏时改由右轴画，免得网格整片消失
+function dualGrid(c, sel) {
+  const o = c.getOption();
+  if ((o.yAxis || []).length < 2) return;
+  const leftOn = o.series.some(s => !s.yAxisIndex && sel[s.name] !== false);
+  const line = on => ({ show: on, lineStyle: { color: css("--grid") } });
+  c.setOption({ yAxis: [{ splitLine: line(leftOn) }, { splitLine: line(!leftOn) }] });
+}
 
 function statHtml(sid) {
   const s = series(sid).filter(p => p[1] != null);
