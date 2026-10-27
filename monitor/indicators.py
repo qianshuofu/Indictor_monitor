@@ -165,10 +165,10 @@ SERIES = {
     "OECD_INV_F": dict(source="steo", code="pasc_oecd_t3:f", name="OECD商业石油库存（EIA预测）", unit="百万桶", freq="M",
                        replace=True),
     # 只有当天报价、没有免费历史的来源：每次运行记一行，另存 data/snapshots.csv
+    # DRAM 只取与 AI 服务器相关的 DDR5：服务器内存条 RDIMM 和 DDR5 颗粒；DDR4、台式机 UDIMM、GDDR 等 PC/显卡用料不取
     **{f"DRAM_{k}": dict(source="dramx", code=c, name=n, unit="美元", freq="D", snapshot=True) for k, c, n in [
-        ("DDR5_16G", "DDR5 16Gb (2Gx8) 4800/5600", "DDR5 16Gb 现货"),
-        ("DDR4_16G", "DDR4 16Gb (2Gx8) 3200", "DDR4 16Gb 现货"),
-        ("DDR4_8G", "DDR4 8Gb (1Gx8) 3200", "DDR4 8Gb 现货")]},
+        ("DDR5_RDIMM_32G", "DDR5 RDIMM 32GB 4800/5600", "DDR5 RDIMM 32GB 服务器内存条"),
+        ("DDR5_16G", "DDR5 16Gb (2Gx8) 4800/5600", "DDR5 16Gb 颗粒")]},
     **{f"GPU_{k}": dict(source="vast", code=c, name=c, unit="美元/卡时", freq="D", snapshot=True) for k, c in [
         ("B200", "B200"), ("H200", "H200"), ("H100", "H100 SXM"), ("A100", "A100 SXM4")]},
 }
@@ -332,10 +332,14 @@ THESES = [
         ind("韩国半导体出口", "line", ["KR_IC_EXP", "M:korea_semi_exports"],
             "Comtrade 为海关 HS8542 集成电路口径（滞后约半年）；产业部每月 1 日公布的半导体出口初值手工录入",
             "UN Comtrade / 韩国产业通商资源部", ref="korea_semi_exports", unit="亿美元"),
-        ind("DRAM 现货价", "line", ["DRAM_DDR5_16G", "DRAM_DDR4_16G", "DRAM_DDR4_8G", "M:dram_spot"],
-            "DRAMeXchange 首页只有当日盘均价、没有免费历史：2026-10 起每次运行记录一次", "DRAMeXchange",
-            ref="dram_spot", unit="美元", nodata="DRAM 合约价和 HBM 价格没有免费数据",
-            links=[("DRAMeXchange 现货与合约价", "https://www.dramexchange.com/")]),
+        ind("服务器内存条现货价（DDR5 RDIMM 32GB）", "line", ["DRAM_DDR5_RDIMM_32G", "M:dram_spot"],
+            "AI 服务器 CPU 侧用的就是 DDR5 RDIMM；DRAMeXchange 每周更新一次报价、没有免费历史，2026-10 起每次运行记录一次",
+            "DRAMeXchange", ref="dram_spot", unit="美元",
+            nodata="AI 加速卡用的 HBM 没有公开报价，服务器内存合约价只对付费会员开放",
+            links=[("DRAMeXchange 现货价", "https://www.dramexchange.com/")]),
+        ind("DDR5 16Gb 颗粒现货价", "line", ["DRAM_DDR5_16G"],
+            "服务器 RDIMM 和 PC 内存条共用的 DDR5 颗粒，反映 DDR5 整体供需；只有当日盘均价，2026-10 起每次运行记录一次",
+            "DRAMeXchange"),
     ]),
     dict(id="ai_credit", title="AI基础设施融资是否演变为信用事件", indicators=[
         ind("CDS：CoreWeave、甲骨文、软银、Meta、亚马逊、Alphabet、微软、英伟达", "manual", [], "",
