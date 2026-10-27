@@ -10,3 +10,4 @@ __pycache__/
 data/macro.db
 data/macro.db-journal
 dashboard.html
+data/update.log

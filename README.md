@@ -10,6 +10,7 @@
 Indictor.md              13 个命题与想看的指标（需求原文）
 指标数据源清单.md          每个指标的实际来源、自动/手工、覆盖区间 + 最初调研记录
 指标解释.md              看板上悬停指标名时弹出的解释（每节标题对应一张卡片，可继续添加）
+每日更新手册.md            每日定时任务的操作手册：每张卡片归入代码抓取 / 浏览固定页面 / 搜新闻，附存储位置与序列 ID
 update.sh                一键更新：拉数据 → 写库 → 重建看板
 manual_data.csv          手工录入的数据（新闻、财报、付费数据里读到的数字）
 requirements.txt
@@ -17,11 +18,13 @@ monitor/
   indicators.py          配置：SERIES（每条原始序列的来源与代码）、DERIVED（派生序列）、THESES（看板结构）
   update_data.py         抓取与入库（并行下载，SQLite 单线程写入）
   build_dashboard.py     从数据库生成 dashboard.html
+  runbook.py             每日更新手册的辅助命令：今天该处理哪些浏览/搜索条目、写入手工记录
   dashboard_template.html  看板页面模板（ECharts）
   echarts.min.js         内联进看板，离线也能打开
 data/
   macro.db               SQLite 数据库（不进 git，可随时重建）
   snapshots.csv          只能取“当天值”的序列的历史快照（进 git，重建数据库时回灌）
+  runbook_state.json     每日更新里各浏览/搜索条目上次处理的日期（进 git）
 dashboard.html           生成的看板（不进 git）
 ```
 
@@ -62,6 +65,20 @@ python3 -m venv .venv
 - 跟随系统深色模式。
 
 单个来源失败不会中断整体更新：该序列在数据库里标为错误、保留旧数据，看板上显示 ⚠。
+
+## 每日自动更新
+
+Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（ID `daily-macro-dashboard-update`），每天 10:00（北京时间）在这台 Mac 上运行：先跑 `./update.sh --breadth`，再按 [`每日更新手册.md`](每日更新手册.md) 处理当天到期的浏览/搜索条目（VLCC 周报、央行购金、云业务增速、资本开支指引、模型公司 ARR、违约率等），写入 `manual_data.csv`，重建看板并在本地提交，最后给出简短报告。
+
+- 只在 Claude 桌面版开着时运行；到点时 App 没开，会在下次打开时补跑。数据源和 moomoo OpenD 只有这台 Mac 能访问，所以不用云端任务。
+- 任务的提示词存在 `~/.claude/scheduled-tasks/daily-macro-dashboard-update/SKILL.md`；在桌面版的定时任务列表里可以暂停、立即运行、查看每次运行的记录。
+- 每个浏览/搜索条目限时 3 分钟，整次运行限 20 分钟；哪天该做哪几条由 `monitor/runbook.py due` 判断。手工操作也用同一套命令：
+
+```bash
+.venv/bin/python monitor/runbook.py due      # 今天该处理哪些条目
+.venv/bin/python monitor/runbook.py add cb_gold 2026-06-30 "央行净购金（季度）" 288.9 --text "2026Q2；2026-07-30 发布" \
+    --source https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
+```
 
 ## 手工数据 `manual_data.csv`
 
