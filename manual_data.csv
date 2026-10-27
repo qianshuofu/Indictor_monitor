@@ -49,6 +49,21 @@ default_rate,2026-07-31,穆迪全球投机级违约率（12个月滚动）,4.4,�
 default_rate,2026-08-31,穆迪全球投机级违约率（12个月滚动）,4.5,初值；穆迪基准情形预计 2026-12 降至 3.6%；历史均值 4.2%,"https://www.ftportfolios.com/Blogs/InvestBlog/2026/9/17/factoid---thursday,-september-17,-2026"
 default_rate,2026-08-31,穆迪美国投机级违约率,5.3,穆迪基准情形预计 2026-12 降至 4.3%,"https://www.ftportfolios.com/Blogs/InvestBlog/2026/9/17/factoid---thursday,-september-17,-2026"
 model_arr,2026-10-08,OpenAI 年化收入,50,FT 援引知情人士：按当前表现年化收入约 500 亿美元（此前有报道称近 700 亿）；日期为报道日,https://news.bgov.com/artificial-intelligence/openais-annualized-revenue-nears-50-billion-ft-says
+model_arr,2024-12-31,OpenAI 年化收入,6,2024 年底年化收入约 60 亿美元；CFO Sarah Friar 2026 年 1 月博客，路透转述,https://finance.yahoo.com/news/openai-cfo-says-annualized-revenue-173519097.html
+model_arr,2025-06-09,OpenAI 年化收入,10,公司宣布年化经常性收入达 100 亿美元（CNBC 首发，Sherwood 转述）；日期为报道日,https://sherwood.news/tech/openai-hits-usd10-billion-in-annual-recurring-revenue/
+model_arr,2025-12-31,OpenAI 年化收入,21.4,2025 年底年化收入 214 亿美元（The Information，路透转述）；CFO 称 2025 年超过 200 亿,https://rte.ie/news/business/2026/0305/1561832-openai-tops-25-billion-in-annualised-revenue-report/
+model_arr,2026-02-28,OpenAI 年化收入,25,截至 2 月底超过 250 亿美元，较 2025 年底 +17%（The Information，路透转述）,https://rte.ie/news/business/2026/0305/1561832-openai-tops-25-billion-in-annualised-revenue-report/
+model_arr,2026-08-13,OpenAI 年化收入,40,超过 400 亿美元，约为 2025 年底的两倍；7 月单月增长超 20%（彭博，Investing.com 转述）；日期为报道日,https://finance.yahoo.com/technology/ai/articles/openai-revenue-run-rate-tops-224009196.html
+model_arr,2024-01-01,Anthropic（Claude）年化收入,0.087,2024 年 1 月年化收入 8700 万美元（VentureBeat 整理的历次数据）,https://venturebeat.com/technology/anthropic-says-it-hit-a-30-billion-revenue-run-rate-after-crazy-80x-growth
+model_arr,2025-01-01,Anthropic（Claude）年化收入,1,2025 年初约 10 亿美元（公司 F 轮融资公告）,https://www.anthropic.com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation
+model_arr,2025-08-01,Anthropic（Claude）年化收入,5,2025 年 8 月超过 50 亿美元（公司 F 轮融资公告，2025-09-02）,https://www.anthropic.com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation
+model_arr,2025-10-16,Anthropic（Claude）年化收入,7,公司对路透称本月接近 70 亿美元；日期为报道日,https://finance.yahoo.com/news/exclusive-anthropic-aims-nearly-triple-170234463.html
+model_arr,2025-12-31,Anthropic（Claude）年化收入,9,2025 年底约 90 亿美元（路透转述）,https://www.thestar.com.my/tech/tech-news/2026/08/18/anthropic-revenue-run-rate-tops-65-billion-source-says
+model_arr,2026-02-12,Anthropic（Claude）年化收入,14,G 轮融资公告：当前 140 亿美元（VentureBeat 整理）,https://venturebeat.com/technology/anthropic-says-it-hit-a-30-billion-revenue-run-rate-after-crazy-80x-growth
+model_arr,2026-03-01,Anthropic（Claude）年化收入,19,2026 年 3 月 190 亿美元（VentureBeat 整理）,https://venturebeat.com/technology/anthropic-says-it-hit-a-30-billion-revenue-run-rate-after-crazy-80x-growth
+model_arr,2026-04-06,Anthropic（Claude）年化收入,30,公司宣布超过 300 亿美元（与谷歌、博通扩大合作公告）,https://venturebeat.com/technology/anthropic-says-it-hit-a-30-billion-revenue-run-rate-after-crazy-80x-growth
+model_arr,2026-05-28,Anthropic（Claude）年化收入,47,H 轮融资公告：5 月上旬突破 470 亿美元；日期为公告日,https://www.anthropic.com/news/series-h
+model_arr,2026-07-31,Anthropic（Claude）年化收入,65,7 月底超过 650 亿美元（彭博首发，路透援引知情人士）,https://www.thestar.com.my/tech/tech-news/2026/08/18/anthropic-revenue-run-rate-tops-65-billion-source-says
 cloud_growth,2026-06-30,AWS 收入同比,37,2026Q2 AWS 收入 422 亿美元；2026-07-30 公布,https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx
 cloud_growth,2026-06-30,Azure 及其他云服务收入同比,43,微软 FY26Q4（2026 年 4–6 月）；固定汇率同为 43%；2026-07-29 公布,https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast
 cloud_growth,2026-06-30,Google Cloud 收入同比,82,2026Q2 收入 247.68 亿美元（上年同期 136.24 亿）；2026-07-22 公布,https://www.sec.gov/Archives/edgar/data/0001652044/000165204426000066/googexhibit991q22026.htm

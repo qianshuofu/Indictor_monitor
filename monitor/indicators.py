@@ -356,7 +356,8 @@ THESES = [
     ]),
     dict(id="ai_return", title="AI商业回报是否增速二阶导下降", indicators=[
         ind("RPO / 积压订单", "line", ["RPO_ORCL", "RPO_MSFT", "RPO_GOOGL", "RPO_AMZN", "RPO_CRWV"], "", "SEC EDGAR"),
-        ind("头部模型公司ARR", "manual", [], "媒体报道，注明来源", "新闻", ref="model_arr", unit="十亿美元"),
+        ind("头部模型公司ARR", "manual", [], "年化收入（run-rate）按近期收入折成一年，不等于全年确认收入；两家算法不同，"
+            "OpenAI 9–10 月还有约 500 亿与近 700 亿两种说法，这里取前者", "公司公告 / 新闻", ref="model_arr", unit="十亿美元"),
         ind("token调用量与单价", "manual", [], "", "OpenRouter / 财报", ref="tokens", unit="",
             nodata="token 调用量没有统一的公开统计，只有 OpenRouter 的路由流量排行和公司财报里偶尔披露的数字",
             links=[("OpenRouter 调用量排行", "https://openrouter.ai/rankings"), ("OpenRouter 模型单价", "https://openrouter.ai/models"),
