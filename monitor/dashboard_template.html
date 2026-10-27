@@ -75,6 +75,11 @@ th:first-child, td:first-child, th.l, td.l { text-align: left; }
 th { color: var(--muted); font-weight: 500; }
 .tbl { max-height: 260px; overflow: auto; }
 .empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; border: 1px dashed var(--grid); border-radius: 8px; }
+.nodata { color: var(--ink2); font-size: 13px; border: 1px dashed var(--grid); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+.nodata b { display: block; color: var(--ink); font-weight: 600; margin-bottom: 2px; }
+.links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.links a { color: var(--accent); text-decoration: none; }
+.links a:hover { text-decoration: underline; }
 select { font: inherit; font-size: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 .tag { display: inline-block; font-size: 11px; color: var(--ink2); background: var(--side); border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 1px; font-weight: 400; }
 @media (max-width: 760px) {
@@ -184,6 +189,15 @@ function footHtml(ind) {
   const bad = ind.series.filter(s => P.meta[s] && (P.meta[s].status || "").startsWith("error") || !P.data[s] && s !== "AUCTIONS");
   if (bad.length) parts.push(`<span class="warn">⚠ 未取到：${bad.map(name).join("、")}</span>`);
   return `<div class="foot">${parts.join(" · ")}</div>`;
+}
+
+// 原指标没有免费下载渠道时的说明，以及能查看数据的网站（新标签页打开）
+function linksHtml(ind, has) {
+  const a = (ind.links || []).map(l => `<a href="${l.url}" target="_blank" rel="noopener">${l.label} ↗</a>`).join("");
+  const links = a ? `<div class="links"><span>可在以下网站查看：</span>${a}</div>` : "";
+  if (!ind.nodata) return links;
+  const hint = ind.chart === "manual" && ind.ref ? `；读到的数字可录入 manual_data.csv（ref=${ind.ref}）` : "";
+  return `<div class="nodata"><b>${has ? "原指标无免费下载渠道" : "原指标暂无数据"}</b><div>${ind.nodata}${hint}</div>${links}</div>`;
 }
 
 function manualTable(ref, limit = 12) {
@@ -359,7 +373,7 @@ function render() {
     if (["line", "bar", "rebased"].includes(ind.chart) && ind.series.length === 1 || ind.chart === "line" && ind.series.length <= 2)
       card.insertAdjacentHTML("beforeend", statHtml(ind.series.filter(s => !s.endsWith("_F")).reduce((a, s) => lastDate(s) > lastDate(a) ? s : a)));
     if (ind.chart === "manual") {
-      card.insertAdjacentHTML("beforeend", `<div class="note">${ind.note}</div>`);
+      if (ind.note) card.insertAdjacentHTML("beforeend", `<div class="note">${ind.note}</div>`);
       const rows = P.manual[ind.ref] || [];
       const num = rows.filter(r => r[2] != null);
       if (num.length >= 2) {
@@ -370,12 +384,17 @@ function render() {
           data: num.filter(r => (r[1] || ind.name) === it).map(r => [r[0], r[2]]) }));
         mount(div, o);
       }
-      card.insertAdjacentHTML("beforeend", manualTable(ind.ref) || `<div class="empty">暂无记录 · 在 manual_data.csv 中添加 ref=${ind.ref} 的行</div>`);
+      // 有 nodata 说明的卡片没有记录时，由“原指标暂无数据”框代替空白提示
+      card.insertAdjacentHTML("beforeend", manualTable(ind.ref) || (ind.nodata ? "" : `<div class="empty">暂无记录 · 在 manual_data.csv 中添加 ref=${ind.ref} 的行</div>`));
+      card.insertAdjacentHTML("beforeend", linksHtml(ind, rows.length > 0));
       card.insertAdjacentHTML("beforeend", `<div class="foot">来源：${ind.source}</div>`);
       return;
     }
     if (ind.chart === "auctions") { auctionsCard(card, ind); card.insertAdjacentHTML("beforeend", `<div class="foot">${ind.note} · 来源：${ind.source}</div>`); return; }
-    if (!has) { card.insertAdjacentHTML("beforeend", `<div class="empty">暂无数据（运行 update_data.py 后重建看板）</div>`); card.insertAdjacentHTML("beforeend", footHtml(ind)); return; }
+    if (!has) {
+      card.insertAdjacentHTML("beforeend", (ind.nodata ? "" : `<div class="empty">暂无数据（运行 update_data.py 后重建看板）</div>`) + linksHtml(ind, false));
+      card.insertAdjacentHTML("beforeend", footHtml(ind)); return;
+    }
     const div = document.createElement("div"); div.className = "chart"; card.appendChild(div);
     const opt = ind.chart === "bar" ? barOpt(ind.series[0]) : ind.chart === "stack" ? stackOpt(ind.series)
       : ind.chart === "sector" ? sectorOpt(ind.series) : ind.chart === "dots" ? dotsOpt(ind.series)
@@ -385,6 +404,7 @@ function render() {
     mount(div, opt);
     if (ind.note) card.insertAdjacentHTML("beforeend", `<div class="note" style="margin-bottom:0">${ind.note}</div>`);
     if (ind.ref && (P.manual[ind.ref] || []).length) card.insertAdjacentHTML("beforeend", manualTable(ind.ref, 6));
+    card.insertAdjacentHTML("beforeend", linksHtml(ind, true));
     card.insertAdjacentHTML("beforeend", footHtml(ind));
   });
 }

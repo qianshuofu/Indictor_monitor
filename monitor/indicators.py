@@ -109,12 +109,6 @@ SERIES = {
        for t, n in [("MSFT", "微软"), ("ORCL", "甲骨文"), ("CRWV", "CoreWeave"), ("GOOGL", "谷歌"),
                     ("AMZN", "亚马逊")]},
     "TSM": yahoo("TSM", "台积电ADR"),
-    "MU": yahoo("MU", "美光"),
-    "HYNIX": yahoo("000660.KS", "SK海力士（韩元）"),
-    "SEC_KR": yahoo("005930.KS", "三星电子（韩元）"),
-    **{f"PX_{t}": yahoo(t, n) for t, n in [
-        ("CRWV", "CoreWeave"), ("ORCL", "甲骨文"), ("NBIS", "Nebius"), ("NVDA", "英伟达"),
-        ("META", "Meta"), ("MSFT", "微软"), ("AMZN", "亚马逊"), ("GOOGL", "谷歌"), ("SFTBY", "软银ADR")]},
     # GDP
     "INFO_EQ": fred("Y034RC1Q027SBEA", "信息处理设备投资（名义）", "十亿美元", "Q"),
     "SOFTWARE": fred("B985RC1Q027SBEA", "软件投资（名义）", "十亿美元", "Q"),
@@ -125,8 +119,6 @@ SERIES = {
     "NEWORDER": fred("NEWORDER", "核心资本品订单", "百万美元", "M"),
     "ANXAVS": fred("ANXAVS", "核心资本品出货", "百万美元", "M"),
     # 能源
-    "FRO": yahoo("FRO", "Frontline 油轮股"),
-    "DHT": yahoo("DHT", "DHT 油轮股"),
     "WTI": yahoo("CL=F", "WTI原油期货"),
     "BRENT": yahoo("BZ=F", "布伦特原油期货"),
     "SPR": dict(source="eia", code="WCSSTUS1", name="美国战略石油储备", unit="千桶", freq="W"),
@@ -250,9 +242,11 @@ DERIVED = {
 # ---------------------------------------------------------------------------
 # 看板结构
 # ---------------------------------------------------------------------------
-def ind(name, chart, series=(), note="", source="", ref=None, unit=None):
+def ind(name, chart, series=(), note="", source="", ref=None, unit=None, links=(), nodata=""):
+    """links：能查看该指标数据的网页 [(名称, 网址)]，卡片上可点击跳转。
+    nodata：原指标没有免费下载渠道时的说明，卡片上显示“原指标暂无数据”（有手工记录或自记快照时显示“无免费下载渠道”）。"""
     return dict(name=name, chart=chart, series=list(series), note=note, source=source,
-                ref=ref, unit=unit)
+                ref=ref, unit=unit, links=[dict(label=k, url=u) for k, u in links], nodata=nodata)
 
 
 THESES = [
@@ -262,7 +256,8 @@ THESES = [
             "FactSet《Earnings Insight》每周五的免费 PDF（2017 年起；一年以前每月取一期）", "FactSet", ref="forward_pe"),
         ind("站上200日均线的个股占比", "line", ["X_BREADTH_200", "X_BREADTH_MOOMOO_SPX", "X_BREADTH_MOOMOO_US"],
             "Yahoo 线用当前标普500成分股自算，越早期越高估（幸存者偏差）；moomoo 为本机 OpenD 选股器每次运行时的快照"
-            "（分母为有满200日数据的股票，全美股含OTC）；StockCharts $SPXA200R 可对照", "Yahoo Finance 自算 / moomoo OpenD"),
+            "（分母为有满200日数据的股票，全美股含OTC）", "Yahoo Finance 自算 / moomoo OpenD",
+            links=[("StockCharts $SPXA200R（对照）", "https://stockcharts.com/sc3/ui/?s=%24SPXA200R")]),
         ind("行业ETF相对标普表现（近1年）", "sector", ["XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC", "SPY"],
             "各行业过去252个交易日回报，衡量板块分化", "Yahoo Finance"),
     ]),
@@ -272,7 +267,8 @@ THESES = [
             "ISM 取自其在 PR Newswire 发布的月报（2018 年起）；费城联储同口径作长历史对照", "ISM / FRED"),
         ind("续请失业金", "line", ["CCSA"], "", "FRED"),
         ind("密歇根大学消费者信心", "line", ["UMCSENT"], "", "FRED"),
-        ind("零售销售同比（银行卡消费替代）", "line", ["X_RSAFS_YOY"], "美国银行卡消费数据无免费接口，用普查局零售销售替代", "FRED"),
+        ind("零售销售同比（银行卡消费替代）", "line", ["X_RSAFS_YOY"], "美国银行卡消费数据无免费接口，用普查局零售销售替代", "FRED",
+            links=[("美国银行研究院 Consumer Checkpoint（银行卡消费月报）", "https://institute.bankofamerica.com/consumer-checkpoint.html")]),
         ind("实际可支配收入同比", "line", ["X_DSPIC96_YOY"], "", "FRED"),
         ind("储蓄率", "line", ["PSAVERT"], "", "FRED"),
         ind("信用卡/车贷：新增严重拖欠与拖欠率", "line", ["NYF_CC_90", "NYF_AUTO_90", "DRCCLACBS", "DRCLACBS", "M:subprime_auto_60d"],
@@ -338,23 +334,34 @@ THESES = [
             "UN Comtrade / 韩国产业通商资源部", ref="korea_semi_exports", unit="亿美元"),
         ind("DRAM 现货价", "line", ["DRAM_DDR5_16G", "DRAM_DDR4_16G", "DRAM_DDR4_8G", "M:dram_spot"],
             "DRAMeXchange 首页只有当日盘均价、没有免费历史：2026-10 起每次运行记录一次", "DRAMeXchange",
-            ref="dram_spot", unit="美元"),
-        ind("存储股价格", "rebased", ["MU", "HYNIX", "SEC_KR"],
-            "美光为美元、海力士/三星为韩元，按所选区间起点=100定基", "Yahoo Finance"),
+            ref="dram_spot", unit="美元", nodata="DRAM 合约价和 HBM 价格没有免费数据",
+            links=[("DRAMeXchange 现货与合约价", "https://www.dramexchange.com/")]),
     ]),
     dict(id="ai_credit", title="AI基础设施融资是否演变为信用事件", indicators=[
-        ind("相关公司股价（CDS替代）", "rebased", ["PX_CRWV", "PX_ORCL", "PX_NBIS", "PX_SFTBY", "PX_META", "PX_NVDA"],
-            "CDS为付费数据；以一年前=100重新定基", "Yahoo Finance", ref="cds"),
+        ind("CDS：CoreWeave、甲骨文、软银、Meta、亚马逊、Alphabet、微软、英伟达", "manual", [], "",
+            "ICE / S&P Global / Bloomberg（付费）", ref="cds", unit="bp",
+            nodata="单名 CDS 报价只在付费终端（ICE、S&P Global、Bloomberg）提供，没有找到可免费下载或查看的网页"),
         ind("GPU 租赁价格", "line", ["GPU_B200", "GPU_H200", "GPU_H100", "GPU_A100", "M:gpu_rental"],
-            "Vast.ai 公开市场按需挂单的每卡每小时中位数（含已租出），2026-10 起每次运行记录；样本少、噪声大",
-            "Vast.ai", ref="gpu_rental", unit="美元/卡时"),
-        ind("新云厂商债券收益率 / GPU ABS 利差", "manual", [], "FINRA TRACE 逐只查询后录入", "FINRA TRACE", ref="neocloud_bond_yield", unit="%"),
+            "图中为 Vast.ai 公开市场按需挂单的每卡每小时中位数（含已租出），2026-10 起每次运行记录；样本少、噪声大",
+            "Vast.ai", ref="gpu_rental", unit="美元/卡时",
+            nodata="Silicon Data 等 GPU 租赁指数只在网页上公布当日值，没有免费下载或历史数据",
+            links=[("Silicon Data GPU 租赁指数（H100/H200/B200 等）", "https://www.silicondata.com/products/silicon-index"),
+                   ("Vast.ai 实时价格", "https://vast.ai/pricing")]),
+        ind("新云厂商债券收益率 / GPU ABS 利差", "manual", [], "", "FINRA TRACE", ref="neocloud_bond_yield", unit="%",
+            nodata="新云厂商债券没有免费下载接口，只能在 FINRA 网站按发行人逐只查询成交价和收益率；GPU 抵押贷款和 ABS 利差没有公开数据",
+            links=[("FINRA 公司债行情", "https://www.finra.org/finra-data/fixed-income/corp-and-agency")]),
     ]),
     dict(id="ai_return", title="AI商业回报是否增速二阶导下降", indicators=[
         ind("RPO / 积压订单", "line", ["RPO_ORCL", "RPO_MSFT", "RPO_GOOGL", "RPO_AMZN", "RPO_CRWV"], "", "SEC EDGAR"),
         ind("头部模型公司ARR", "manual", [], "媒体报道，注明来源", "新闻", ref="model_arr", unit="十亿美元"),
-        ind("token调用量与单价", "manual", [], "OpenRouter 排行、财报披露", "OpenRouter / 财报", ref="tokens", unit=""),
-        ind("云业务增速与折旧年限", "manual", [], "Azure/GCP/AWS 同比增速与折旧政策调整", "财报", ref="cloud_growth", unit="%"),
+        ind("token调用量与单价", "manual", [], "", "OpenRouter / 财报", ref="tokens", unit="",
+            nodata="token 调用量没有统一的公开统计，只有 OpenRouter 的路由流量排行和公司财报里偶尔披露的数字",
+            links=[("OpenRouter 调用量排行", "https://openrouter.ai/rankings"), ("OpenRouter 模型单价", "https://openrouter.ai/models"),
+                   ("Silicon Data token 价格指数", "https://www.silicondata.com/products/silicon-index/llm-token-expenditure-index")]),
+        ind("云业务增速与折旧年限", "manual", [], "Azure/GCP/AWS 同比增速与折旧政策调整", "财报", ref="cloud_growth", unit="%",
+            links=[("微软投资者关系", "https://www.microsoft.com/en-us/investor"),
+                   ("亚马逊季度业绩", "https://ir.aboutamazon.com/quarterly-results/default.aspx"),
+                   ("Alphabet 投资者关系", "https://abc.xyz/investor/")]),
     ]),
     dict(id="ai_gdp", title="AI投资对GDP的支撑效果", indicators=[
         ind("信息处理设备+软件投资占GDP", "line", ["X_INFO_SW_GDP"], "", "FRED（BEA）"),
@@ -369,7 +376,9 @@ THESES = [
         ind("OECD 商业石油库存", "line", ["OECD_INV", "OECD_INV_F"], "虚线为当期报告的预测；海湾出口量（Kpler/Vortexa）为付费数据",
             "EIA STEO"),
         ind("美国战略石油储备与商业库存", "line", ["SPR", "CRUDE_COM"], "", "EIA"),
-        ind("油轮股（VLCC运价替代）", "line", ["FRO", "DHT"], "波罗的海运价为付费数据，可手工录入TD3C", "Yahoo / 波罗的海交易所", ref="vlcc_td3c"),
+        ind("VLCC 运价（TD3C 中东湾—中国）", "manual", [], "", "波罗的海交易所", ref="vlcc_td3c", unit="WS",
+            nodata="TD3C 日度运价是波罗的海交易所的付费数据，没有免费下载渠道；交易所官网每周五的免费油轮周报会给出当周 TD3C 的 WS 点数和日租金",
+            links=[("波罗的海交易所每周油轮报告（Tanker 栏）", "https://www.balticexchange.com/en/data-services/WeeklyRoundup.html")]),
     ]),
     dict(id="gold", title="黄金", indicators=[
         ind("金价", "line", ["GOLD"], "", "Yahoo Finance"),
@@ -382,6 +391,7 @@ THESES = [
         ind("金银比", "line", ["X_GOLD_SILVER"], "", "Yahoo Finance"),
         ind("金油比 / 金TLT比", "line", ["X_GOLD_OIL", "X_GOLD_TLT"], "", "Yahoo Finance"),
         ind("全球央行购金（季度）", "manual", [], "世界黄金协会《黄金需求趋势》季报中的央行净购买量", "世界黄金协会",
-            ref="cb_gold", unit="吨"),
+            ref="cb_gold", unit="吨", links=[("世界黄金协会《黄金需求趋势》", "https://www.gold.org/goldhub/research/gold-demand-trends"),
+                                            ("各国央行黄金储备", "https://www.gold.org/goldhub/data/gold-reserves-by-country")]),
     ]),
 ]
