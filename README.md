@@ -68,11 +68,11 @@ python3 -m venv .venv
 
 ## 每日自动更新
 
-Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（ID `daily-macro-dashboard-update`），每天 10:00（北京时间）在这台 Mac 上运行：先跑 `./update.sh --breadth`，再按 [`每日更新手册.md`](每日更新手册.md) 处理当天到期的浏览/搜索条目（VLCC 周报、央行购金、云业务增速、资本开支指引、模型公司 ARR、违约率等），写入 `manual_data.csv`，重建看板并在本地提交，最后给出简短报告。
+Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（ID `daily-macro-dashboard-update`），每天 10:00（北京时间；App 为错峰固定延后几分钟，实际约 10:14 开始）在这台 Mac 上运行：先跑 `./update.sh --breadth`，再按 [`每日更新手册.md`](每日更新手册.md) 处理当天到期的浏览/搜索条目（VLCC 周报、央行购金、云业务增速、资本开支指引、模型公司 ARR、违约率等），写入 `manual_data.csv`，重建看板并在本地提交，最后给出简短报告。
 
 - 只在 Claude 桌面版开着时运行；到点时 App 没开，会在下次打开时补跑。数据源和 moomoo OpenD 只有这台 Mac 能访问，所以不用云端任务。
 - 任务的提示词存在 `~/.claude/scheduled-tasks/daily-macro-dashboard-update/SKILL.md`；在桌面版的定时任务列表里可以暂停、立即运行、查看每次运行的记录。
-- 每个浏览/搜索条目限时 3 分钟，整次运行限 20 分钟；哪天该做哪几条由 `monitor/runbook.py due` 判断。手工操作也用同一套命令：
+- 每个浏览/搜索条目限时 3 分钟，整次运行限 25 分钟（update.sh 约占 6 分钟）；哪天该做哪几条由 `monitor/runbook.py due` 判断。手工操作也用同一套命令：
 
 ```bash
 .venv/bin/python monitor/runbook.py due      # 今天该处理哪些条目
