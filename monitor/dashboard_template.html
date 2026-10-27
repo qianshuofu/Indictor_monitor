@@ -53,8 +53,12 @@ main { overflow-y: auto; padding: 20px 24px 40px; }
 .ranges { display: flex; gap: 4px; background: var(--side); padding: 3px; border-radius: 8px; box-shadow: 0 0 0 1px var(--border); }
 .ranges button { border: 0; background: none; color: var(--ink2); padding: 4px 10px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
 .ranges button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); grid-auto-flow: dense; gap: 16px; }
 .card { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--border); padding: 14px 16px 12px; min-width: 0; }
+/* 序列多的图占满一行（三列及以上的宽屏占两列） */
+.card.wide { grid-column: 1 / -1; }
+.card.wide .chart { height: 320px; }
+@media (min-width: 1760px) { .card.wide { grid-column: span 2; } }
 .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .stat { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px; }
 .stat .v { font-size: 22px; font-weight: 600; }
@@ -118,6 +122,8 @@ const unit = sid => (P.meta[sid] || {}).unit || "";
 const cutoff = () => { const d = new Date(); d.setFullYear(d.getFullYear() - state.years); return d.toISOString().slice(0, 10); };
 const series = sid => (P.data[sid] || []);
 const inRange = sid => { const c = cutoff(); return series(sid).filter(p => p[0] >= c && p[1] != null); };
+// 大字读数取最近有数的序列（如韩国出口：Comtrade 滞后半年，产业部初值更新）
+const lastDate = sid => { const d = series(sid).filter(p => p[1] != null); return d.length ? d[d.length - 1][0] : ""; };
 
 function baseOpt() {
   return {
@@ -129,14 +135,28 @@ function baseOpt() {
     legend: { top: 0, left: 0, icon: "roundRect", itemWidth: 12, itemHeight: 3, textStyle: { color: css("--ink2"), fontSize: 12 } },
   };
 }
-const timeX = () => ({ type: "time", axisLine: { lineStyle: { color: css("--axis") } }, axisTick: { show: false },
+const timeX = () => ({ type: "time", minInterval: 864e5, axisLine: { lineStyle: { color: css("--axis") } }, axisTick: { show: false },
   axisLabel: { color: css("--muted"), hideOverlap: true }, splitLine: { show: false } });
 const axFmt = (v, u) => { const a = Math.abs(v); const s = a >= 1e4 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : String(+v.toPrecision(4));
   return u === "%" ? s + "%" : u === "bp" ? s : s; };
 const valY = (u) => ({ type: "value", scale: true, axisLabel: { color: css("--muted"), formatter: v => axFmt(v, u) },
   splitLine: { lineStyle: { color: css("--grid") } } });
 
-function mount(el, opt) { const c = echarts.init(el, null, { renderer: "svg" }); c.setOption(opt); charts.push(c); return c; }
+const measure = (() => { const ctx = document.createElement("canvas").getContext("2d");
+  return (s, size = 12) => { ctx.font = `${size}px system-ui, -apple-system, "PingFang SC", sans-serif`; return ctx.measureText(String(s)).width; }; })();
+
+// 图例按卡片宽度折行：按实际行数给绘图区留出顶部空间，避免图例压住曲线（窗口缩放时重算）
+function fitLegend(c) {
+  const o = c.getOption(), lg = (o.legend || [])[0];
+  if (!lg || lg.show === false || !(o.grid || []).length) return;
+  const names = [...new Set(o.series.map(s => s.name).filter(n => n != null && n !== ""))];
+  const avail = c.getWidth() - 10;
+  let rows = 1, x = 0;
+  names.forEach(n => { const w = lg.itemWidth + 5 + measure(n, 12); if (x && x + w > avail) { rows++; x = 0; } x += w + lg.itemGap; });
+  c.setOption({ grid: { top: rows * 14 + (rows - 1) * 10 + 10 + 12 } });
+}
+
+function mount(el, opt) { const c = echarts.init(el, null, { renderer: "svg" }); c.setOption(opt); fitLegend(c); charts.push(c); return c; }
 
 function statHtml(sid) {
   const s = series(sid).filter(p => p[1] != null);
@@ -149,7 +169,8 @@ function statHtml(sid) {
   let d = "";
   if (prev) {
     const ch = last[1] - prev[1];
-    const pct = ["%", "bp", "相关系数", "点", "扩散指数", "对数偏离"].includes(u);
+    // 百分比类单位、或首尾有 0/负值（如 SRF 用量、异议票数）时给绝对变化，避免 -100% 之类的误导
+    const pct = ["%", "bp", "相关系数", "点", "扩散指数", "对数偏离"].includes(u) || prev[1] <= 0 || last[1] <= 0;
     const txt = pct ? fmt(ch, u === "%" ? "%" : u === "bp" ? "bp" : "") : ((ch / Math.abs(prev[1])) * 100).toFixed(1) + "%";
     d = `<span class="d ${ch >= 0 ? "up" : "down"}">${ch >= 0 ? "▲" : "▼"} ${ch >= 0 ? "+" : ""}${txt} 较一年前</span>`;
   }
@@ -189,7 +210,7 @@ function lineOpt(sids, rebase) {
   o.xAxis = timeX(); o.yAxis = valY(u);
   o.legend.show = sids.length > 1;
   o.tooltip.valueFormatter = v => fmt(v, u);
-  const pal = colors();
+  const pal = colors(), ends = sids.length > 1 && sids.length <= 4;
   o.series = sids.map((sid, i) => {
     let d = inRange(sid);
     if (rebase && d.length) { const b = d[0][1]; d = d.map(p => [p[0], (p[1] / b) * 100]); }
@@ -198,9 +219,13 @@ function lineOpt(sids, rebase) {
     const color = pal[(base >= 0 ? base : i) % pal.length];
     return { name: name(sid), type: "line", data: withGaps(d), showSymbol: d.length < 40 || sid.startsWith("M:"), symbolSize: 6,
       itemStyle: { color }, lineStyle: { width: 2, color, type: base >= 0 ? "dashed" : "solid" }, connectNulls: false, sampling: "lttb",
-      endLabel: { show: sids.length > 1 && sids.length <= 4, formatter: p => fmt(p.value[1], u), color: css("--ink2"), fontSize: 11 } };
+      // 有预测段的历史线不标末值（末端在图中间，会压住预测线），由预测段标
+      endLabel: { show: ends && !sids.includes(sid + "_F"), formatter: p => fmt(p.value[1], u), color: css("--ink2"), fontSize: 11 },
+      labelLayout: { moveOverlap: "shiftY" } };
   });
-  o.grid.right = sids.length > 1 && sids.length <= 4 ? 56 : 16;
+  // 末端数值标签：右侧留出最长标签的宽度；末值相近时上下错开（labelLayout）
+  const lastW = o.series.map(s => { const d = s.data.filter(p => p[1] != null); return d.length ? measure(fmt(d[d.length - 1][1], u), 11) : 0; });
+  o.grid.right = ends ? Math.ceil(Math.max(...lastW)) + 14 : 16;
   if (rebase) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 100 }], lineStyle: { color: css("--axis"), type: "dashed" }, label: { show: false } };
   const zeroUnits = ["bp", "相关系数", "点", "对数偏离"];
   if (!rebase && zeroUnits.includes(u)) o.series[0].markLine = { silent: true, symbol: "none", data: [{ yAxis: 0 }], lineStyle: { color: css("--axis") }, label: { show: false } };
@@ -268,7 +293,7 @@ function sectorOpt(sids) {
     const last = s[s.length - 1][1], prev = s[s.length - 253][1];
     return [name(sid).replace(" 行业ETF", "").replace("标普500 ETF（复权）", "标普500"), (last / prev - 1) * 100, sid];
   }).filter(Boolean).sort((a, b) => a[1] - b[1]);
-  o.grid.top = 8; o.legend.show = false;
+  o.grid.top = 8; o.grid.right = 52; o.legend.show = false;
   o.tooltip = { ...o.tooltip, trigger: "item", formatter: p => `${p.name}<br>近一年回报 <b>${p.value.toFixed(1)}%</b>` };
   o.yAxis = { type: "category", data: rows.map(r => r[0]), axisLabel: { color: css("--ink2") }, axisLine: { show: false }, axisTick: { show: false } };
   o.xAxis = { type: "value", axisLabel: { color: css("--muted"), formatter: v => v + "%" }, splitLine: { lineStyle: { color: css("--grid") } } };
@@ -324,13 +349,15 @@ function render() {
   document.querySelectorAll(".thesis").forEach(b => b.classList.toggle("active", b.dataset.id === th.id));
   document.querySelectorAll(".ranges button").forEach(b => b.classList.toggle("on", +b.dataset.y === state.years));
   const grid = document.getElementById("grid"); grid.innerHTML = "";
-  th.indicators.forEach(ind => {
-    const card = document.createElement("div"); card.className = "card"; grid.appendChild(card);
+  // 手工/付费卡片排在最后；序列多的图用宽卡片
+  [...th.indicators].sort((a, b) => (a.chart === "manual") - (b.chart === "manual")).forEach(ind => {
+    const card = document.createElement("div"); grid.appendChild(card);
+    card.className = "card" + (["stack", "curve"].includes(ind.chart) || ["line", "rebased"].includes(ind.chart) && ind.series.length >= 5 ? " wide" : "");
     const tag = ind.chart === "manual" ? `<span class="tag">手工/付费</span>` : "";
     card.innerHTML = `<h3>${ind.name}${tag}</h3>`;
     const has = ind.series.some(s => series(s).length);
     if (["line", "bar", "rebased"].includes(ind.chart) && ind.series.length === 1 || ind.chart === "line" && ind.series.length <= 2)
-      card.insertAdjacentHTML("beforeend", statHtml(ind.series[0]));
+      card.insertAdjacentHTML("beforeend", statHtml(ind.series.filter(s => !s.endsWith("_F")).reduce((a, s) => lastDate(s) > lastDate(a) ? s : a)));
     if (ind.chart === "manual") {
       card.insertAdjacentHTML("beforeend", `<div class="note">${ind.note}</div>`);
       const rows = P.manual[ind.ref] || [];
@@ -367,13 +394,17 @@ const nav = document.getElementById("nav");
 P.theses.forEach(t => {
   const b = document.createElement("button"); b.className = "thesis"; b.dataset.id = t.id;
   b.innerHTML = `${t.title}<span class="cnt">${t.indicators.length}</span>`;
-  b.onclick = () => { state.thesis = t.id; save(); render(); document.querySelector("main").scrollTop = 0; };
+  b.onclick = () => { state.thesis = t.id; save(); history.replaceState(null, "", "#" + t.id); render(); document.querySelector("main").scrollTop = 0; };
   nav.appendChild(b);
 });
+// 地址栏 #命题id（如 dashboard.html#fed）直接打开对应命题
+const fromHash = () => { const h = decodeURIComponent(location.hash.slice(1)); if (P.theses.some(t => t.id === h)) state.thesis = h; };
+fromHash();
+window.addEventListener("hashchange", () => { fromHash(); render(); });
 const rg = document.getElementById("ranges");
 RANGES.forEach(([l, y]) => { const b = document.createElement("button"); b.textContent = l; b.dataset.y = y;
   b.onclick = () => { state.years = y; save(); render(); }; rg.appendChild(b); });
-window.addEventListener("resize", () => charts.forEach(c => c.resize()));
+window.addEventListener("resize", () => charts.forEach(c => { c.resize(); fitLegend(c); }));
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
 render();
 </script>
