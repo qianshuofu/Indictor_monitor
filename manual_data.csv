@@ -64,9 +64,60 @@ model_arr,2026-03-01,Anthropic（Claude）年化收入,19,2026 年 3 月 190 亿
 model_arr,2026-04-06,Anthropic（Claude）年化收入,30,公司宣布超过 300 亿美元（与谷歌、博通扩大合作公告）,https://venturebeat.com/technology/anthropic-says-it-hit-a-30-billion-revenue-run-rate-after-crazy-80x-growth
 model_arr,2026-05-28,Anthropic（Claude）年化收入,47,H 轮融资公告：5 月上旬突破 470 亿美元；日期为公告日,https://www.anthropic.com/news/series-h
 model_arr,2026-07-31,Anthropic（Claude）年化收入,65,7 月底超过 650 亿美元（彭博首发，路透援引知情人士）,https://www.thestar.com.my/tech/tech-news/2026/08/18/anthropic-revenue-run-rate-tops-65-billion-source-says
-cloud_growth,2026-06-30,AWS 收入同比,37,2026Q2 AWS 收入 422 亿美元；2026-07-30 公布,https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx
-cloud_growth,2026-06-30,Azure 及其他云服务收入同比,43,微软 FY26Q4（2026 年 4–6 月）；固定汇率同为 43%；2026-07-29 公布,https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast
-cloud_growth,2026-06-30,Google Cloud 收入同比,82,2026Q2 收入 247.68 亿美元（上年同期 136.24 亿）；2026-07-22 公布,https://www.sec.gov/Archives/edgar/data/0001652044/000165204426000066/googexhibit991q22026.htm
+cloud_growth,2022-03-31,AWS 收入同比,36.6,2022Q1 AWS 收入 184.4 亿美元（上年同期 135.0 亿）；2022-04-28 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872422000011/amzn-20220331xex991.htm
+cloud_growth,2022-06-30,AWS 收入同比,33.3,2022Q2 AWS 收入 197.4 亿美元（上年同期 148.1 亿）；2022-07-28 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872422000017/amzn-20220630xex991.htm
+cloud_growth,2022-09-30,AWS 收入同比,27.5,2022Q3 AWS 收入 205.4 亿美元（上年同期 161.1 亿）；2022-10-27 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872422000021/amzn-20220930xex991.htm
+cloud_growth,2022-12-31,AWS 收入同比,20.2,2022Q4 AWS 收入 213.8 亿美元（上年同期 177.8 亿）；2023-02-02 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872423000002/amzn-20221231xex991.htm
+cloud_growth,2023-03-31,AWS 收入同比,15.8,2023Q1 AWS 收入 213.5 亿美元（上年同期 184.4 亿）；2023-04-27 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872423000006/amzn-20230331xex991.htm
+cloud_growth,2023-06-30,AWS 收入同比,12.2,2023Q2 AWS 收入 221.4 亿美元（上年同期 197.4 亿）；2023-08-03 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872423000010/amzn-20230630xex991.htm
+cloud_growth,2023-09-30,AWS 收入同比,12.3,2023Q3 AWS 收入 230.6 亿美元（上年同期 205.4 亿）；2023-10-26 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872423000016/amzn-20230930xex991.htm
+cloud_growth,2023-12-31,AWS 收入同比,13.2,2023Q4 AWS 收入 242.0 亿美元（上年同期 213.8 亿）；2024-02-01 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872424000006/amzn-20231231xex991.htm
+cloud_growth,2024-03-31,AWS 收入同比,17.2,2024Q1 AWS 收入 250.4 亿美元（上年同期 213.5 亿）；2024-04-30 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872424000081/amzn-20240331xex991.htm
+cloud_growth,2024-06-30,AWS 收入同比,18.7,2024Q2 AWS 收入 262.8 亿美元（上年同期 221.4 亿）；2024-08-01 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872424000128/amzn-20240630xex991.htm
+cloud_growth,2024-09-30,AWS 收入同比,19.1,2024Q3 AWS 收入 274.5 亿美元（上年同期 230.6 亿）；2024-10-31 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872424000158/amzn-20240930xex991.htm
+cloud_growth,2024-12-31,AWS 收入同比,18.9,2024Q4 AWS 收入 287.9 亿美元（上年同期 242.0 亿）；2025-02-06 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872425000002/amzn-20241231xex991.htm
+cloud_growth,2025-03-31,AWS 收入同比,16.9,2025Q1 AWS 收入 292.7 亿美元（上年同期 250.4 亿）；2025-05-01 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872425000034/amzn-20250331xex991.htm
+cloud_growth,2025-06-30,AWS 收入同比,17.5,2025Q2 AWS 收入 308.7 亿美元（上年同期 262.8 亿）；2025-07-31 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872425000084/amzn-20250630xex991.htm
+cloud_growth,2025-09-30,AWS 收入同比,20.2,2025Q3 AWS 收入 330.1 亿美元（上年同期 274.5 亿）；2025-10-30 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872425000121/amzn-20250930xex991.htm
+cloud_growth,2025-12-31,AWS 收入同比,23.6,2025Q4 AWS 收入 355.8 亿美元（上年同期 287.9 亿）；2026-02-05 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872426000002/amzn-20251231xex991.htm
+cloud_growth,2026-03-31,AWS 收入同比,28.4,2026Q1 AWS 收入 375.9 亿美元（上年同期 292.7 亿）；2026-04-29 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872426000012/amzn-20260331xex991.htm
+cloud_growth,2026-06-30,AWS 收入同比,36.8,2026Q2 AWS 收入 422.3 亿美元（上年同期 308.7 亿）；2026-07-30 公布,https://www.sec.gov/Archives/edgar/data/1018724/000101872426000024/amzn-20260630xex991.htm
+cloud_growth,2022-03-31,Azure 及其他云服务收入同比,46,微软 FY22Q3（2022Q1）；2022-04-26 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312522120207/d328712dex991.htm
+cloud_growth,2022-06-30,Azure 及其他云服务收入同比,40,微软 FY22Q4（2022Q2）；固定汇率 46%；2022-07-26 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312522202034/d372382dex991.htm
+cloud_growth,2022-09-30,Azure 及其他云服务收入同比,35,微软 FY23Q1（2022Q3）；固定汇率 42%；2022-10-25 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312522268356/d361432dex991.htm
+cloud_growth,2022-12-31,Azure 及其他云服务收入同比,31,微软 FY23Q2（2022Q4）；固定汇率 38%；2023-01-24 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312523014230/d406070dex991.htm
+cloud_growth,2023-03-31,Azure 及其他云服务收入同比,27,微软 FY23Q3（2023Q1）；固定汇率 31%；2023-04-25 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312523115280/d321368dex991.htm
+cloud_growth,2023-06-30,Azure 及其他云服务收入同比,26,微软 FY23Q4（2023Q2）；固定汇率 27%；2023-07-25 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017023034400/msft-ex99_1.htm
+cloud_growth,2023-09-30,Azure 及其他云服务收入同比,29,微软 FY24Q1（2023Q3）；固定汇率 28%；2023-10-24 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017023054848/msft-ex99_1.htm
+cloud_growth,2023-12-31,Azure 及其他云服务收入同比,30,微软 FY24Q2（2023Q4）；固定汇率 28%；2024-01-30 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017024008809/msft-ex99_1.htm
+cloud_growth,2024-03-31,Azure 及其他云服务收入同比,31,微软 FY24Q3（2024Q1）；2024-04-25 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017024048268/msft-ex99_1.htm
+cloud_growth,2024-06-30,Azure 及其他云服务收入同比,29,微软 FY24Q4（2024Q2）；固定汇率 30%；2024-07-30 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017024087835/msft-ex99_1.htm
+cloud_growth,2024-09-30,Azure 及其他云服务收入同比,33,微软 FY25Q1（2024Q3）；固定汇率 34%；2024-10-30 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017024118955/msft-ex99_1.htm
+cloud_growth,2024-12-31,Azure 及其他云服务收入同比,31,微软 FY25Q2（2024Q4）；2025-01-29 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017025010484/msft-ex99_1.htm
+cloud_growth,2025-03-31,Azure 及其他云服务收入同比,33,微软 FY25Q3（2025Q1）；固定汇率 35%；2025-04-30 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017025061032/msft-ex99_1.htm
+cloud_growth,2025-06-30,Azure 及其他云服务收入同比,39,微软 FY25Q4（2025Q2）；2025-07-30 公布,https://www.sec.gov/Archives/edgar/data/789019/000095017025100226/msft-ex99_1.htm
+cloud_growth,2025-09-30,Azure 及其他云服务收入同比,40,微软 FY26Q1（2025Q3）；固定汇率 39%；2025-10-29 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312525256310/msft-ex99_1.htm
+cloud_growth,2025-12-31,Azure 及其他云服务收入同比,39,微软 FY26Q2（2025Q4）；固定汇率 38%；2026-01-28 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312526027198/msft-ex99_1.htm
+cloud_growth,2026-03-31,Azure 及其他云服务收入同比,40,微软 FY26Q3（2026Q1）；固定汇率 39%；2026-04-29 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312526191457/msft-ex99_1.htm
+cloud_growth,2026-06-30,Azure 及其他云服务收入同比,43,微软 FY26Q4（2026Q2）；2026-07-29 公布,https://www.sec.gov/Archives/edgar/data/789019/000119312526323632/msft-ex99_1.htm
+cloud_growth,2022-03-31,Google Cloud 收入同比,43.8,2022Q1 Google Cloud 收入 58.2 亿美元（上年同期 40.5 亿）；2022-04-26 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204422000025/googexhibit991q12022.htm
+cloud_growth,2022-06-30,Google Cloud 收入同比,35.6,2022Q2 Google Cloud 收入 62.8 亿美元（上年同期 46.3 亿）；2022-07-26 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204422000068/googexhibit991q22022.htm
+cloud_growth,2022-09-30,Google Cloud 收入同比,37.6,2022Q3 Google Cloud 收入 68.7 亿美元（上年同期 49.9 亿）；2022-10-25 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204422000085/googexhibit991q32022.htm
+cloud_growth,2022-12-31,Google Cloud 收入同比,32.0,2022Q4 Google Cloud 收入 73.2 亿美元（上年同期 55.4 亿）；2023-02-02 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204423000013/googexhibit991q42022.htm
+cloud_growth,2023-03-31,Google Cloud 收入同比,28.1,2023Q1 Google Cloud 收入 74.5 亿美元（上年同期 58.2 亿）；2023-04-25 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204423000041/googexhibit991q12023.htm
+cloud_growth,2023-06-30,Google Cloud 收入同比,28.0,2023Q2 Google Cloud 收入 80.3 亿美元（上年同期 62.8 亿）；2023-07-25 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204423000067/googexhibit991q22023.htm
+cloud_growth,2023-09-30,Google Cloud 收入同比,22.5,2023Q3 Google Cloud 收入 84.1 亿美元（上年同期 68.7 亿）；2023-10-24 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204423000088/googexhibit991q32023.htm
+cloud_growth,2023-12-31,Google Cloud 收入同比,25.7,2023Q4 Google Cloud 收入 91.9 亿美元（上年同期 73.2 亿）；2024-01-30 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204424000014/googexhibit991q42023.htm
+cloud_growth,2024-03-31,Google Cloud 收入同比,28.4,2024Q1 Google Cloud 收入 95.7 亿美元（上年同期 74.5 亿）；2024-04-25 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204424000047/googexhibit991q12024.htm
+cloud_growth,2024-06-30,Google Cloud 收入同比,28.8,2024Q2 Google Cloud 收入 103.5 亿美元（上年同期 80.3 亿）；2024-07-23 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204424000076/googexhibit991q22024.htm
+cloud_growth,2024-09-30,Google Cloud 收入同比,35.0,2024Q3 Google Cloud 收入 113.5 亿美元（上年同期 84.1 亿）；2024-10-29 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204424000115/googexhibit991q32024.htm
+cloud_growth,2024-12-31,Google Cloud 收入同比,30.1,2024Q4 Google Cloud 收入 119.5 亿美元（上年同期 91.9 亿）；2025-02-04 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204425000010/googexhibit991q42024.htm
+cloud_growth,2025-03-31,Google Cloud 收入同比,28.1,2025Q1 Google Cloud 收入 122.6 亿美元（上年同期 95.7 亿）；2025-04-24 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204425000040/googexhibit991q12025.htm
+cloud_growth,2025-06-30,Google Cloud 收入同比,31.7,2025Q2 Google Cloud 收入 136.2 亿美元（上年同期 103.5 亿）；2025-07-23 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204425000056/googexhibit991q22025.htm
+cloud_growth,2025-09-30,Google Cloud 收入同比,33.5,2025Q3 Google Cloud 收入 151.6 亿美元（上年同期 113.5 亿）；2025-10-29 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204425000087/googexhibit991q32025.htm
+cloud_growth,2025-12-31,Google Cloud 收入同比,47.8,2025Q4 Google Cloud 收入 176.6 亿美元（上年同期 119.5 亿）；2026-02-04 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204426000012/googexhibit991q42025.htm
+cloud_growth,2026-03-31,Google Cloud 收入同比,63.4,2026Q1 Google Cloud 收入 200.3 亿美元（上年同期 122.6 亿）；2026-04-29 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204426000043/googexhibit991q12026.htm
+cloud_growth,2026-06-30,Google Cloud 收入同比,81.8,2026Q2 Google Cloud 收入 247.7 亿美元（上年同期 136.2 亿）；2026-07-22 公布,https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm
 cb_gold,2025-06-30,央行净购金（季度）,177.9,世界黄金协会 2026Q2 报告汇总表中的 2025Q2 值,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
 cb_gold,2026-03-31,央行净购金（季度）,57,2026Q1 修订值（原估 244 吨）,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
 cb_gold,2026-06-30,央行净购金（季度）,288.9,2026Q2；上半年合计 345 吨；2026-07-30 发布，数据截至 7 月 24 日,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
