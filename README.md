@@ -2,6 +2,8 @@
 
 围绕 `Indictor.md` 里的 13 个宏观命题（美股分化与估值、衰退、通胀、加息终点、美元流动性、主权债务、信用利差、AI 资本开支/融资/回报/GDP 支撑、能源、黄金），自动拉取免费数据存入本地 SQLite，再生成一个离线可用的单文件看板 `dashboard.html`。
 
+在线看板：https://qianshuofu.github.io/Indictor_monitor/ （GitHub Pages，每天定时任务更新后自动推送）。
+
 各指标的来源、代码、自动/手工与覆盖区间见 [`指标数据源清单.md`](指标数据源清单.md)。
 
 ## 目录结构
@@ -25,7 +27,9 @@ data/
   macro.db               SQLite 数据库（不进 git，可随时重建）
   snapshots.csv          只能取“当天值”的序列的历史快照（进 git，重建数据库时回灌）
   runbook_state.json     每日更新里各浏览/搜索条目上次处理的日期（进 git）
-dashboard.html           生成的看板（不进 git）
+dashboard.html           生成的看板（进 git，GitHub Pages 发布的就是它）
+index.html               GitHub Pages 首页，跳转到 dashboard.html
+.env                     本机设置，如 SEC 联系邮箱（不进 git）
 ```
 
 ## 安装
@@ -68,7 +72,7 @@ python3 -m venv .venv
 
 ## 每日自动更新
 
-Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（ID `daily-macro-dashboard-update`），每天 10:00（北京时间；App 为错峰固定延后几分钟，实际约 10:14 开始）在这台 Mac 上运行：在后台跑 `./update.sh --breadth`，同时按 [`每日更新手册.md`](每日更新手册.md) 处理当天到期的浏览/搜索条目（VLCC 周报、央行购金、云业务增速、资本开支指引、模型公司 ARR、违约率等），写入 `manual_data.csv`，重建看板并在本地提交，最后给出简短报告。
+Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（ID `daily-macro-dashboard-update`），每天 10:00（北京时间；App 为错峰固定延后几分钟，实际约 10:14 开始）在这台 Mac 上运行：在后台跑 `./update.sh --breadth`，同时按 [`每日更新手册.md`](每日更新手册.md) 处理当天到期的浏览/搜索条目（VLCC 周报、央行购金、云业务增速、资本开支指引、模型公司 ARR、违约率等），写入 `manual_data.csv`，重建看板，提交并 `git push` 到 GitHub（在线看板约 1 分钟后更新），最后给出简短报告。
 
 - 只在 Claude 桌面版开着时运行；到点时 App 没开，会在下次打开时补跑。数据源和 moomoo OpenD 只有这台 Mac 能访问，所以不用云端任务。
 - 任务的提示词存在 `~/.claude/scheduled-tasks/daily-macro-dashboard-update/SKILL.md`；在桌面版的定时任务列表里可以暂停、立即运行、查看每次运行的记录。
@@ -79,6 +83,10 @@ Claude 桌面版里有一个本地定时任务「每日更新宏观看板」（I
 .venv/bin/python monitor/runbook.py add cb_gold 2026-06-30 "央行净购金（季度）" 288.9 --text "2026Q2；2026-07-30 发布" \
     --source https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
 ```
+
+## 在线看板（GitHub Pages）
+
+仓库 https://github.com/qianshuofu/Indictor_monitor 是公开的，GitHub Pages 从 `main` 分支根目录发布，`index.html` 跳转到 `dashboard.html`（ECharts 已内联在看板里）。看板是写死数据的静态页面，本地重建后要提交 `dashboard.html` 并 `git push` 才会更新，定时任务每天最后会做这一步。数据库不进 git。提交用 GitHub 匿名邮箱（本仓库的 `git config user.email`），SEC 联系邮箱放在本机 `.env`，都不会公开。
 
 ## 手工数据 `manual_data.csv`
 
@@ -125,6 +133,6 @@ capex_guidance,2026-10-21,Meta 2026,140,区间 $135–145B（此前 $130–145B�
 
 ## 说明
 
-- SEC EDGAR 要求请求头带联系邮箱，在 `update_data.py` 的 `SEC_UA` 里修改。各来源按主机限速（SEC 每秒 8 次等）。
+- SEC EDGAR 要求请求头带联系邮箱：写在项目根目录的 `.env`（一行 `SEC_CONTACT_EMAIL=你的邮箱`，不进 git），也可以用同名环境变量。没有设置时用占位邮箱，SEC 可能拒绝请求。各来源按主机限速（SEC 每秒 8 次等）。
 - FRED 用公开的 `fredgraph.csv` 接口，不需要 API key。
 - Yahoo Finance 为非官方接口，偶尔限流；失败的序列下次运行会补上。

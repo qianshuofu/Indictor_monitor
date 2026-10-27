@@ -16,6 +16,7 @@ import html as htmllib
 import io
 import json
 import logging
+import os
 import re
 import socket
 import sqlite3
@@ -46,7 +47,23 @@ MANUAL = ROOT / "manual_data.csv"
 # 只有“当天值”、事后无法回补的序列（moomoo 选股器、DRAM 现货、GPU 租价）另存一份文本，删库重建也不丢
 SNAPSHOTS = ROOT / "data" / "snapshots.csv"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh) indicator-monitor research contact@example.com"}
-SEC_UA = {"User-Agent": "indicator-monitor research contact@example.com"}
+
+
+def local_setting(key, default=""):
+    """本机设置：先读环境变量，再读项目根目录的 .env（KEY=VALUE 每行一条；.env 不进 git）。"""
+    if os.environ.get(key):
+        return os.environ[key]
+    env = ROOT / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            k, sep, v = line.partition("=")
+            if sep and k.strip() == key:
+                return v.strip().strip("\"'")
+    return default
+
+
+# SEC EDGAR 要求请求头带真实联系邮箱；邮箱写在 .env 的 SEC_CONTACT_EMAIL，不随仓库公开
+SEC_UA = {"User-Agent": f"indicator-monitor research {local_setting('SEC_CONTACT_EMAIL', 'contact@example.com')}"}
 SESSION = requests.Session()
 SESSION.headers.update(UA)
 # 多线程共用一个 Session：连接池放大到不小于线程数，免得反复建连

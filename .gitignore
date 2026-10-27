@@ -6,8 +6,14 @@ __pycache__/
 # macOS
 .DS_Store
 
-# 可再生成的产物：./update.sh --full 会重建数据库，build_dashboard.py 重建看板
-data/macro.db
-data/macro.db-journal
-dashboard.html
+# 本机设置（SEC 联系邮箱等），不公开
+.env
+
+# 数据库不进 git：./update.sh --full 可随时重建
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 data/update.log
+
+# dashboard.html 虽由 build_dashboard.py 生成，但要进 git：GitHub Pages 发布的就是它
