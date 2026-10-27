@@ -1,19 +1,25 @@
 """每日更新手册（每日更新手册.md）的辅助命令，定时任务每天按手册跑一遍时用：
 
-    .venv/bin/python monitor/runbook.py due                        # 今天到期的浏览/搜索条目，及 update.sh 里失败的序列
+    .venv/bin/python monitor/runbook.py due                        # 今天到期的浏览/搜索条目
     .venv/bin/python monitor/runbook.py text 网址 [--grep 关键词]    # 取网页正文（sec.gov 自动带 SEC 要求的请求头）
     .venv/bin/python monitor/runbook.py add REF 日期 ITEM 数值 --text 说明 --source 网址 [--new-item] [--force]
-    .venv/bin/python monitor/runbook.py snap 序列 日期 数值           # 快照序列（DRAM 现货价）补录
     .venv/bin/python monitor/runbook.py done 条目 [条目 ...]          # 条目今天已处理（不论有无新数），到期前不再列出
+    .venv/bin/python monitor/runbook.py status                     # update.sh 跑完后：日志摘要与失败的序列
+    .venv/bin/python monitor/runbook.py snap 序列 日期 数值           # 快照序列（DRAM 现货价）补录
+    .venv/bin/python monitor/runbook.py build                      # 收尾：重载手工记录并重建看板
 
 add 按 (ref, date, item) 覆盖或插入 manual_data.csv 的一行，并立即重载数据库 manual 表。不要直接写库：
 update_data.py 每次运行都按 CSV 整表重载 manual 表，直接写进库里的记录会被清掉。
+due、text、add、done 可以和后台的 update.sh 同时运行；status、snap、build 要等 update.sh 跑完。
 """
 import argparse
 import csv
 import io
 import json
+import os
 import re
+import shutil
+import sqlite3
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -25,7 +31,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import update_data as U  # noqa: E402
 from indicators import SERIES, THESES  # noqa: E402
 
+# SEC 按 IP 限速（每秒 10 次）。update.sh 可能同时在跑、自己用到每秒 8 次，这里只用 2 次
+U.LIMITS["data.sec.gov"] = U.LIMITS["www.sec.gov"] = U.RateLimiter(2)
+
 STATE = U.ROOT / "data" / "runbook_state.json"  # 各条目上次处理的日期
+LOG = U.ROOT / "data" / "update.log"  # 手册第 2 步把 update.sh 的输出写在这里
 REFS = {i["ref"] for t in THESES for i in t["indicators"] if i["ref"]}
 TODAY = date.today()
 NEVER = date(1900, 1, 1)
@@ -40,6 +50,13 @@ KEYS = {"vlcc_td3c", "cb_gold", "model_arr", "default_rate", "korea_semi_exports
 
 def die(msg):
     sys.exit(f"✗ {msg}")
+
+
+def db():
+    """update.sh 可能正在并行写库：等锁最多 60 秒，而不是 5 秒后报 database is locked。"""
+    con = sqlite3.connect(U.DB, timeout=60)
+    con.executescript(U.SCHEMA)
+    return con
 
 
 def load_state():
@@ -183,13 +200,28 @@ def cmd_due(_):
     for key, why, _ in rest:
         print(f"  · {key}：{why}")
 
-    con = U.connect()
-    bad = con.execute("SELECT series_id, name, last_obs, status FROM series WHERE status != 'ok' "
-                      "ORDER BY series_id").fetchall()
-    print(f"update.sh 失败的序列：{len(bad)} 条")
+
+def cmd_status(_):
+    lines = LOG.read_text(encoding="utf-8", errors="replace").splitlines() if LOG.exists() else []
+    if not any(ln.startswith("exit=") for ln in lines):
+        print(f"⚠ {LOG.name} 里还没有 exit= 结束标记：update.sh 可能还在跑，等它跑完再看")
+    print("update.log 摘要：")
+    for ln in [ln for ln in lines if re.search(r"✗|跳过|宽度|完成：|已生成|⚠|exit=|Traceback|Error:", ln)][-25:]:
+        print("  " + ln.strip())
+    bad = db().execute("SELECT series_id, name, last_obs, status FROM series WHERE status != 'ok' "
+                       "ORDER BY series_id").fetchall()
+    print(f"失败的序列：{len(bad)} 条")
     for sid, name, last_obs, status in bad:
         tip = "  → B3：浏览 DRAMeXchange 后用 snap 补录" if SERIES.get(sid, {}).get("source") == "dramx" else ""
         print(f"  ✗ {sid} {name}（库里最新 {last_obs}）{status[:120]}{tip}")
+
+
+def cmd_build(_):
+    """收尾：按 CSV 重载 manual 表（与 update.sh 并行写入时也不会漏记录），再重建看板。"""
+    n = U.load_manual(db())
+    import build_dashboard
+    build_dashboard.main()
+    print(f"（manual 表共 {n} 条）")
 
 
 def cmd_text(a):
@@ -257,9 +289,13 @@ def cmd_add(a):
         lines.insert(after + 1, row)
     else:
         lines.append(row)
-    with open(U.MANUAL, "w", encoding="utf-8", newline="") as fh:
+    # 写临时文件再整体替换：并行运行的 update.sh 读到的要么是旧文件、要么是新文件，不会读到写了一半的
+    tmp = U.MANUAL.with_name(U.MANUAL.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="") as fh:
         fh.write("".join(lines))
-    n = U.load_manual(U.connect())
+    shutil.copymode(U.MANUAL, tmp)
+    os.replace(tmp, U.MANUAL)
+    n = U.load_manual(db())
     print(f"{'覆盖' if hit is not None else '新增'}：{row.strip()}\n（manual 表已重载，共 {n} 条）")
 
 
@@ -268,8 +304,8 @@ def cmd_snap(a):
     if not meta or not meta.get("snapshot"):
         die(f"{a.sid} 不是快照序列，可用：{', '.join(k for k, m in SERIES.items() if m.get('snapshot'))}")
     d, v = pd.Timestamp(date.fromisoformat(a.date)), float(a.value)
-    U.record_snapshot([(a.sid, d, v, meta["source"])])
-    U.save_series(U.connect(), a.sid, pd.Series([v], index=[d]), meta)
+    U.record_snapshot([(a.sid, d, v, meta["source"])])  # update.sh 也写这个文件，所以 snap 要等它跑完
+    U.save_series(db(), a.sid, pd.Series([v], index=[d]), meta)
     print(f"已记录 {a.sid} {d:%Y-%m-%d} = {v:g}（data/snapshots.csv 与数据库）")
 
 
@@ -302,13 +338,15 @@ def main():
     p.add_argument("--new-item", action="store_true", help="该 ref 下新开一条线")
     p.add_argument("--force", action="store_true", help="跳过与上一条数值的量级检查")
     p.set_defaults(fn=cmd_add)
-    p = sub.add_parser("snap", help="快照序列补录")
-    for k in ("sid", "date", "value"):
-        p.add_argument(k)
-    p.set_defaults(fn=cmd_snap)
     p = sub.add_parser("done", help="记下条目今天已处理")
     p.add_argument("keys", nargs="+")
     p.set_defaults(fn=cmd_done)
+    sub.add_parser("status", help="update.sh 跑完后：日志摘要与失败的序列").set_defaults(fn=cmd_status)
+    p = sub.add_parser("snap", help="快照序列补录（等 update.sh 跑完）")
+    for k in ("sid", "date", "value"):
+        p.add_argument(k)
+    p.set_defaults(fn=cmd_snap)
+    sub.add_parser("build", help="收尾：重载手工记录并重建看板").set_defaults(fn=cmd_build)
     a = ap.parse_args()
     a.fn(a)
 
