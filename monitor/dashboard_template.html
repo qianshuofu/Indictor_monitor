@@ -80,6 +80,12 @@ th { color: var(--muted); font-weight: 500; }
 .links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 .links a { color: var(--accent); text-decoration: none; }
 .links a:hover { text-decoration: underline; }
+/* 指标名悬停解释：名字带虚线下划线，弹窗内容来自 指标解释.md */
+.tipname { cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; outline: none; }
+.tipname:focus-visible { box-shadow: 0 0 0 2px var(--accent-wash); border-radius: 3px; }
+.tip { position: fixed; z-index: 10; display: none; max-width: min(380px, calc(100vw - 16px)); padding: 10px 12px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.16); font-size: 12.5px; line-height: 1.65; white-space: pre-line; pointer-events: none; }
 select { font: inherit; font-size: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 .tag { display: inline-block; font-size: 11px; color: var(--ink2); background: var(--side); border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 1px; font-weight: 400; }
 @media (max-width: 760px) {
@@ -356,7 +362,27 @@ function auctionsCard(card, ind) {
   draw(sel);
 }
 
+// 指标名的解释小窗：鼠标悬停、键盘聚焦或手机点按时显示在名字下方（下方放不下就放上方），点别处或滚动时收起
+const tipEl = document.createElement("div"); tipEl.className = "tip"; tipEl.setAttribute("role", "tooltip"); document.body.appendChild(tipEl);
+const hideTip = () => { tipEl.style.display = "none"; };
+function showTip(el, text) {
+  tipEl.textContent = text; tipEl.style.display = "block";
+  const r = el.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px";
+  tipEl.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6) + "px";
+}
+function bindTip(el, text) {
+  el.addEventListener("mouseenter", () => showTip(el, text));
+  el.addEventListener("mouseleave", hideTip);
+  el.addEventListener("focus", () => showTip(el, text));
+  el.addEventListener("blur", hideTip);
+  el.addEventListener("click", e => { e.stopPropagation(); showTip(el, text); });
+}
+document.addEventListener("click", hideTip);
+document.querySelector("main").addEventListener("scroll", hideTip, { passive: true });
+
 function render() {
+  hideTip();
   charts.forEach(c => c.dispose()); charts = [];
   const th = P.theses.find(t => t.id === state.thesis) || P.theses[0];
   document.getElementById("title").textContent = th.title;
@@ -368,7 +394,8 @@ function render() {
     const card = document.createElement("div"); grid.appendChild(card);
     card.className = "card" + (["stack", "curve"].includes(ind.chart) || ["line", "rebased"].includes(ind.chart) && ind.series.length >= 5 ? " wide" : "");
     const tag = ind.chart === "manual" ? `<span class="tag">手工/付费</span>` : "";
-    card.innerHTML = `<h3>${ind.name}${tag}</h3>`;
+    card.innerHTML = `<h3>${ind.tip ? `<span class="tipname" tabindex="0">${ind.name}</span>` : ind.name}${tag}</h3>`;
+    if (ind.tip) bindTip(card.querySelector(".tipname"), ind.tip);
     const has = ind.series.some(s => series(s).length);
     if (["line", "bar", "rebased"].includes(ind.chart) && ind.series.length === 1 || ind.chart === "line" && ind.series.length <= 2)
       card.insertAdjacentHTML("beforeend", statHtml(ind.series.filter(s => !s.endsWith("_F")).reduce((a, s) => lastDate(s) > lastDate(a) ? s : a)));

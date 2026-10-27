@@ -5,6 +5,7 @@
 import copy
 import json
 import math
+import re
 import sqlite3
 import sys
 from datetime import date, datetime
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "macro.db"
 OUT = ROOT / "dashboard.html"
 TEMPLATE = Path(__file__).resolve().parent / "dashboard_template.html"
+TIPS = ROOT / "指标解释.md"
 
 
 def rnd(v):
@@ -44,6 +46,21 @@ def expand(sid, have, manual):
     return [sid]
 
 
+def load_tips():
+    """指标解释.md：每个“## 卡片标题”下面的段落，是看板上悬停该指标名时显示的解释。"""
+    if not TIPS.exists():
+        return {}
+    tips, name, buf = {}, None, []
+    for line in TIPS.read_text(encoding="utf-8").splitlines() + ["## "]:
+        if line.startswith("## "):
+            if name:
+                tips[name] = re.sub(r"\n{3,}", "\n\n", "\n".join(buf).strip())
+            name, buf = line[3:].strip(), []
+        elif name:
+            buf.append(line.rstrip())
+    return tips
+
+
 def main():
     con = sqlite3.connect(DB)
     meta = {r[0]: dict(name=r[1], unit=r[2], freq=r[3], source=r[4], last_updated=r[6], last_obs=r[7],
@@ -58,9 +75,14 @@ def main():
         rows.sort(key=lambda r: r[0])
     have = {r[0] for r in con.execute("SELECT DISTINCT series_id FROM observations")}
     theses = copy.deepcopy(THESES)
+    tips = load_tips()
+    for name in tips.keys() - {i["name"] for t in theses for i in t["indicators"]}:
+        print(f"⚠ 指标解释.md 里的“{name}”没有对应的卡片（标题要与看板上的卡片标题完全一致）")
     data = {}
     for t in theses:
         for ind in t["indicators"]:
+            if ind["name"] in tips:
+                ind["tip"] = tips[ind["name"]]
             ind["series"] = [x for sid in ind["series"] for x in expand(sid, have, manual)]
             for sid in ind["series"]:
                 if sid.startswith("M:"):  # 手工数值记录当作普通序列画
