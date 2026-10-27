@@ -1,0 +1,110 @@
+# 宏观命题监控
+
+围绕 `Indictor.md` 里的 13 个宏观命题（美股分化与估值、衰退、通胀、加息终点、美元流动性、主权债务、信用利差、AI 资本开支/融资/回报/GDP 支撑、能源、黄金），自动拉取免费数据存入本地 SQLite，再生成一个离线可用的单文件看板 `dashboard.html`。
+
+各指标的来源、代码、自动/手工与覆盖区间见 [`指标数据源清单.md`](指标数据源清单.md)。
+
+## 目录结构
+
+```
+Indictor.md              13 个命题与想看的指标（需求原文）
+指标数据源清单.md          每个指标的实际来源、自动/手工、覆盖区间 + 最初调研记录
+update.sh                一键更新：拉数据 → 写库 → 重建看板
+manual_data.csv          手工录入的数据（新闻、财报、付费数据里读到的数字）
+requirements.txt
+monitor/
+  indicators.py          配置：SERIES（每条原始序列的来源与代码）、DERIVED（派生序列）、THESES（看板结构）
+  update_data.py         抓取与入库（并行下载，SQLite 单线程写入）
+  build_dashboard.py     从数据库生成 dashboard.html
+  dashboard_template.html  看板页面模板（ECharts）
+  echarts.min.js         内联进看板，离线也能打开
+data/
+  macro.db               SQLite 数据库（不进 git，可随时重建）
+  snapshots.csv          只能取“当天值”的序列的历史快照（进 git，重建数据库时回灌）
+dashboard.html           生成的看板（不进 git）
+```
+
+## 安装
+
+需要 Python 3（本机用 3.14 运行）。
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+`update.sh` 会优先用项目里的 `.venv`，没有就用系统 `python3`。
+
+可选：本机运行 **moomoo OpenD**（默认 `127.0.0.1:11111`）并安装 `moomoo-api` 时，每次更新会顺带用选股器记录标普 500 和全美股站上 200 日均线的占比。没开 OpenD 会自动跳过，不影响其他数据。
+
+## 日常使用
+
+```bash
+./update.sh              # 增量更新所有序列，然后重建看板
+./update.sh --full       # 从 2010-01-01 起全量重拉（数据源修订过历史、或删库重建时用）
+./update.sh --breadth    # 额外用当前标普 500 成分股自算站上 200 日均线占比（16 线程，约 1 分钟）
+./update.sh --only DGS10,SPY   # 只更新指定序列（序列名见 monitor/indicators.py）
+./update.sh --workers 4  # 并行下载线程数，默认 8
+./update.sh -v           # 失败时打印完整报错
+```
+
+只改了看板模板时，可以只重建看板：`.venv/bin/python monitor/build_dashboard.py`。改了 `manual_data.csv` 则要跑 `./update.sh`，手工数据经 `update_data.py` 才会写进数据库。
+
+跑完后用浏览器打开 `dashboard.html`：
+
+- 左侧切换命题，右上角切换时间范围（1/3/5/10 年/全部），选择会记在浏览器里。
+- 地址栏加 `#命题id` 可直接打开某个命题，如 `dashboard.html#fed`、`#ai_capex`、`#gold`（id 见 `indicators.py` 里 `THESES` 的 `id`）。
+- 每张卡片：大字为最新值和较一年前的变化；底部写来源，取数失败的序列会标黄色 ⚠。
+- 卡片顺序：关键/领先指标在前，标“手工/付费”的卡片在最后；序列多的图占满一行。
+- 跟随系统深色模式。
+
+单个来源失败不会中断整体更新：该序列在数据库里标为错误、保留旧数据，看板上显示 ⚠。
+
+## 手工数据 `manual_data.csv`
+
+没有免费接口的数字（新闻稿、财报电话会、付费数据的公开摘录）手工录入这个 CSV。以 `#` 开头的行是注释。列：
+
+| 列 | 说明 |
+|---|---|
+| `ref` | 对应看板指标的 `ref`（见 `indicators.py` 中 `ind(..., ref="...")`，文件头注释里也列了全部可用值） |
+| `date` | 数据所属日期 `YYYY-MM-DD`（月度数据写当月 1 日，季度写季末或发布日） |
+| `item` | 项目名。同一 `ref` 下每个 `item` 画成一条线，所以同一口径要用完全相同的写法 |
+| `value` | 数值，可空（只记文字事件时留空） |
+| `text` | 文字说明：原始区间、同比、口径等 |
+| `source` | 出处网址，必填 |
+
+规则：只录网页上实际读到的数字，不估算；区间型指引的 `value` 取中值，原区间写进 `text`。`(ref, date, item)` 相同的行以最后一次为准。
+
+示例：
+
+```csv
+ref,date,item,value,text,source
+korea_semi_exports,2026-09-01,产业部半导体出口（初值）,603,同比 +263%；次月 1 日公布,https://...
+capex_guidance,2026-10-21,Meta 2026,140,区间 $135–145B（此前 $130–145B）；数值为区间中值,https://...
+```
+
+看板上：纯手工指标的卡片显示最近 12 条记录，有 2 个以上数值时画折线；自动指标若带 `ref`，手工记录作为补充表格（或 `M:ref` 序列）显示在同一张卡片里。
+
+## 数据库结构（`data/macro.db`）
+
+| 表 | 主键 | 列 | 内容 |
+|---|---|---|---|
+| `series` | `series_id` | `name, unit, freq, source, code, last_updated, last_obs, n_obs, status` | 每条序列的元数据与最近一次抓取状态（`ok` 或错误信息） |
+| `observations` | `(series_id, date)` | `value` | 所有时间序列的观测值，含派生序列（`X_` 开头） |
+| `auctions` | `(cusip, auction_date)` | `security_type, security_term, offering_amt, high_yield, bid_to_cover, indirect_accepted, direct_accepted, primary_dealer_accepted, competitive_accepted` | 美债拍卖结果（财政部 Fiscal Data） |
+| `manual` | `(ref, date, item)` | `value, text, source` | `manual_data.csv` 的内容，每次运行整表重载 |
+| `events` | `(ref, date, item)` | `value, text, source` | 自动抓取的事件型记录，如 FOMC 异议票（异议者及主张） |
+
+日期一律为 `YYYY-MM-DD` 文本。数据库可随时删除，用 `./update.sh --full` 重建；只能取当天值的序列（DRAM 现货价、GPU 租价、moomoo 宽度）会从 `data/snapshots.csv` 回灌。
+
+## 新增或修改指标
+
+1. 在 `monitor/indicators.py` 的 `SERIES` 里加原始序列（如 `fred("CODE", "名称", "单位", "D")`、`yahoo("TICKER", "名称")`）；需要计算的放进 `DERIVED`，并在 `update_data.py` 的 `derive()` 里实现。
+2. 在 `THESES` 对应命题下加 `ind(名称, 图表类型, [序列...], 说明, 来源, ref=...)`。图表类型：`line` 折线、`rebased` 定基 100 折线、`bar` 柱状、`stack` 堆叠柱、`sector` 行业横条、`dots` 点阵图、`curve` 利率期货曲线、`auctions` 拍卖、`manual` 纯手工。
+3. 运行 `./update.sh --only 新序列` 拉数据并重建看板。
+
+## 说明
+
+- SEC EDGAR 要求请求头带联系邮箱，在 `update_data.py` 的 `SEC_UA` 里修改。各来源按主机限速（SEC 每秒 8 次等）。
+- FRED 用公开的 `fredgraph.csv` 接口，不需要 API key。
+- Yahoo Finance 为非官方接口，偶尔限流；失败的序列下次运行会补上。
