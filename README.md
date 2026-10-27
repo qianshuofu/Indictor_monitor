@@ -96,7 +96,7 @@ capex_guidance,2026-10-21,Meta 2026,140,区间 $135–145B（此前 $130–145B�
 | `manual` | `(ref, date, item)` | `value, text, source` | `manual_data.csv` 的内容，每次运行整表重载 |
 | `events` | `(ref, date, item)` | `value, text, source` | 自动抓取的事件型记录，如 FOMC 异议票（异议者及主张） |
 
-日期一律为 `YYYY-MM-DD` 文本。数据库可随时删除，用 `./update.sh --full` 重建；只能取当天值的序列（DRAM 现货价、GPU 租价、moomoo 宽度）会从 `data/snapshots.csv` 回灌。
+日期一律为 `YYYY-MM-DD` 文本。数据库可随时删除，用 `./update.sh --full` 重建；只能取当天值或近期值的序列（DRAM 现货价、moomoo 宽度，以及免费接口只给近 3 个月的 Ornn GPU 租赁价格指数）会从 `data/snapshots.csv` 回灌。
 
 ## 新增或修改指标
 

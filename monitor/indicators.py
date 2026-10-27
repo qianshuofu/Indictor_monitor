@@ -169,8 +169,9 @@ SERIES = {
     **{f"DRAM_{k}": dict(source="dramx", code=c, name=n, unit="美元", freq="D", snapshot=True) for k, c, n in [
         ("DDR5_RDIMM_32G", "DDR5 RDIMM 32GB 4800/5600", "DDR5 RDIMM 32GB 服务器内存条"),
         ("DDR5_16G", "DDR5 16Gb (2Gx8) 4800/5600", "DDR5 16Gb 颗粒")]},
-    **{f"GPU_{k}": dict(source="vast", code=c, name=c, unit="美元/卡时", freq="D", snapshot=True) for k, c in [
-        ("B200", "B200"), ("H200", "H200"), ("H100", "H100 SXM"), ("A100", "A100 SXM4")]},
+    # Ornn 计算价格指数：免费接口只给最近 3 个月，整段记入 snapshots.csv，历史随运行累积
+    **{f"GPU_{k}": dict(source="ornn", code=c, name=c, unit="美元/卡时", freq="D", snapshot=True) for k, c in [
+        ("B200", "B200"), ("H200", "H200"), ("H100", "H100 SXM"), ("A100", "A100 SXM4"), ("RTX6000", "RTX PRO 6000 WS")]},
 }
 
 FUT_MONTHS = "FGHJKMNQUVXZ"
@@ -345,12 +346,10 @@ THESES = [
         ind("CDS：CoreWeave、甲骨文、软银、Meta、亚马逊、Alphabet、微软、英伟达", "manual", [], "",
             "ICE / S&P Global / Bloomberg（付费）", ref="cds", unit="bp",
             nodata="单名 CDS 报价只在付费终端（ICE、S&P Global、Bloomberg）提供，没有找到可免费下载或查看的网页"),
-        ind("GPU 租赁价格", "line", ["GPU_B200", "GPU_H200", "GPU_H100", "GPU_A100", "M:gpu_rental"],
-            "图中为 Vast.ai 公开市场按需挂单的每卡每小时中位数（含已租出），2026-10 起每次运行记录；样本少、噪声大",
-            "Vast.ai", ref="gpu_rental", unit="美元/卡时",
-            nodata="Silicon Data 等 GPU 租赁指数只在网页上公布当日值，没有免费下载或历史数据",
-            links=[("Silicon Data GPU 租赁指数（H100/H200/B200 等）", "https://www.silicondata.com/products/silicon-index"),
-                   ("Vast.ai 实时价格", "https://vast.ai/pricing")]),
+        ind("GPU 租赁价格", "line", ["GPU_B200", "GPU_H200", "GPU_H100", "GPU_A100", "GPU_RTX6000", "M:gpu_rental"],
+            "Ornn 计算价格指数（OCPI）：按实际成交的租赁交易算出的每卡每小时价格；免费接口只给最近 3 个月日度数据"
+            "（2026-07-27 起），之后每次运行累积；GB200 不在免费范围", "Ornn Data（OCPI）", ref="gpu_rental", unit="美元/卡时",
+            links=[("Ornn GPU 租赁价格指数", "https://data.ornn.com/")]),
         ind("新云厂商债券收益率 / GPU ABS 利差", "manual", [], "", "FINRA TRACE", ref="neocloud_bond_yield", unit="%",
             nodata="新云厂商债券没有免费下载接口，只能在 FINRA 网站按发行人逐只查询成交价和收益率；GPU 抵押贷款和 ABS 利差没有公开数据",
             links=[("FINRA 公司债行情", "https://www.finra.org/finra-data/fixed-income/corp-and-agency")]),

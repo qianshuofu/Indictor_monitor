@@ -28,7 +28,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import numpy as np
 import pandas as pd
@@ -922,14 +922,15 @@ def fetch_dramx(code, start):
     return pd.Series([float(m.group(5))], index=[pd.Timestamp(f"{day} {mon} {year}")])
 
 
-def fetch_vast(code, start):
-    """Vast.ai 公开市场的按需挂单（含已租出）：每卡每小时价格中位数。只有当前报价，每次运行记一行。"""
-    q = json.dumps({"gpu_name": {"eq": code}, "type": "on-demand"})
-    offers = get("https://console.vast.ai/api/v0/bundles/", params={"q": q}).json().get("offers", [])
-    px = [o["dph_total"] / o["num_gpus"] for o in offers if o.get("num_gpus") and o.get("dph_total")]
-    if len(px) < 3:
-        raise ValueError(f"{code} 挂单不足 3 个")
-    return pd.Series([float(np.median(px))], index=[pd.Timestamp(date.today())])
+def fetch_ornn(code, start):
+    """Ornn 计算价格指数（OCPI，data.ornn.com）：按实际成交的 GPU 租赁交易算出的每卡每小时价格，每天 20:00 UTC 结算。
+    免费接口不要 key，但只给最近 3 个月的日度值；整段记入 data/snapshots.csv，更早的历史靠每次运行累积。"""
+    d = get(f"https://data.ornn.com/api/public-index/gpu/{quote(code)}/index-history").json()
+    s = pd.Series({pd.Timestamp(r["timestamp"][:10]): float(r["index_value"])
+                   for r in d.get("data", []) if r.get("index_value") is not None})
+    if s.empty:
+        raise ValueError(f"{code} 没有返回数据")
+    return s.sort_index()
 
 
 # 同一次下载出多条序列的来源
@@ -940,7 +941,7 @@ FETCHERS = {"fred": fetch_fred, "yahoo": fetch_yahoo, "sec_capex": fetch_sec_cap
             "auctions": fetch_auctions, "umich": fetch_umich, "nyfed_sce": fetch_sce, "nyfed_hhdc": fetch_hhdc,
             "factset": fetch_factset, "mops": fetch_mops, "fomc": fetch_fomc, "mspd": fetch_mspd, "steo": fetch_steo,
             "safe_gold": fetch_safe_gold, "gld": fetch_gld, "ism": fetch_ism, "nfib": fetch_nfib,
-            "comtrade": fetch_comtrade, "yahoo_fut": fetch_yahoo_fut, "dramx": fetch_dramx, "vast": fetch_vast}
+            "comtrade": fetch_comtrade, "yahoo_fut": fetch_yahoo_fut, "dramx": fetch_dramx, "ornn": fetch_ornn}
 
 
 # ---------------------------------------------------------------------------
