@@ -14,6 +14,7 @@ korea_semi_exports,2026-06-01,产业部半导体出口（初值）,448.2,同比 
 korea_semi_exports,2026-07-01,产业部半导体出口（初值）,410.1,同比 +178.8%；次月 1 日公布,https://view.asiae.co.kr/en/article/2026080109133165502
 korea_semi_exports,2026-08-01,产业部半导体出口（初值）,466.5,同比 +209%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20260901/koreas-monthly-exports-surge-687-in-august-on-strong-chip-shipments
 korea_semi_exports,2026-09-01,产业部半导体出口（初值）,603.0,同比 +263%；次月 1 日公布,https://www.koreatimes.co.kr/economy/20261001/koreas-sept-exports-hit-record-1209-bil-on-robust-chip-sales
+korea_semi_exports,2026-10-01,产业部半导体出口（初值）,564,同比 +259%；次月 1 日公布（11-01 周日发布；当月总出口 1153 亿美元，同比 +93.7%）,https://www.koreatimes.co.kr/economy/20261101/koreas-monthly-exports-hit-1153-bil-in-oct-on-record-chip-sales
 capex_guidance,2024-07-31,Meta 2024,38.5,区间 $37–40B（此前 $35–40B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680124000065/meta-06302024xexhibit991.htm
 capex_guidance,2024-10-30,Meta 2024,39,区间 $38–40B（此前 $37–40B）；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680124000077/meta-09302024xexhibit991.htm
 capex_guidance,2025-01-29,Meta 2025,62.5,区间 $60–65B；2024 年实际 $39.23B；数值为区间中值,https://www.sec.gov/Archives/edgar/data/1326801/000132680125000014/meta-12312024xexhibit991.htm
@@ -124,5 +125,6 @@ cloud_growth,2026-09-30,AWS 收入同比,39.3,2026Q3 AWS 收入 459.8 亿美元�
 cb_gold,2025-06-30,央行净购金（季度）,177.9,世界黄金协会 2026Q2 报告汇总表中的 2025Q2 值,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
 cb_gold,2026-03-31,央行净购金（季度）,57,2026Q1 修订值（原估 244 吨）,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
 cb_gold,2026-06-30,央行净购金（季度）,288.9,2026Q2；上半年合计 345 吨；2026-07-30 发布，数据截至 7 月 24 日,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026/central-banks
+cb_gold,2026-09-30,央行净购金（季度）,321.2,2026Q3；前三季度合计 675 吨；2026-11-03 发布，数据截至 10 月 30 日,https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q3-2026/central-banks
 vlcc_td3c,2026-10-23,TD3C WS,1208.13,"往返日租金 TCE $1,287,851/天；较上周 -88 点",https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-43.html
 vlcc_td3c,2026-10-30,TD3C WS,1262.5,"往返日租金 TCE $1,345,710/天；较上周 +48 点",https://www.balticexchange.com/en/data-services/WeeklyRoundup/tanker/news/2026/tanker-report-week-44.html
