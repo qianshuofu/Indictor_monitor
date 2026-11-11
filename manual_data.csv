@@ -46,6 +46,7 @@ capex_guidance,2025-11-10,CoreWeave 2025,13,区间 $12–14B（上季度为 $20�
 capex_guidance,2026-02-26,CoreWeave 2026,32.5,区间 $30–35B（2 月四季度业绩会给出，见该报道）；数值为区间中值,https://www.cnbc.com/2026/05/07/coreweave-crwv-q1-earnings-report-2026.html
 capex_guidance,2026-05-07,CoreWeave 2026,33,区间 $31–35B（此前 $30–35B）；数值为区间中值,https://www.cnbc.com/2026/05/07/coreweave-crwv-q1-earnings-report-2026.html
 capex_guidance,2026-08-11,CoreWeave 2026,37,区间 $35–39B（此前 $31–35B）；数值为区间中值,https://dashboard.channelchek.com/?p=104902
+capex_guidance,2026-11-10,CoreWeave 2026,38,区间 $37–39B（此前 $35–39B，上调区间下限）；数值为区间中值；2026Q3 业绩新闻稿,https://www.sec.gov/Archives/edgar/data/1769628/000176962826000461/coreweave3q26earningspress.htm
 default_rate,2026-07-31,穆迪全球投机级违约率（12个月滚动）,4.4,据 2026-09-17 First Trust 转述的穆迪 8 月报告,"https://www.ftportfolios.com/Blogs/InvestBlog/2026/9/17/factoid---thursday,-september-17,-2026"
 default_rate,2026-08-31,穆迪全球投机级违约率（12个月滚动）,4.5,初值；穆迪基准情形预计 2026-12 降至 3.6%；历史均值 4.2%,"https://www.ftportfolios.com/Blogs/InvestBlog/2026/9/17/factoid---thursday,-september-17,-2026"
 default_rate,2026-08-31,穆迪美国投机级违约率,5.3,穆迪基准情形预计 2026-12 降至 4.3%,"https://www.ftportfolios.com/Blogs/InvestBlog/2026/9/17/factoid---thursday,-september-17,-2026"
